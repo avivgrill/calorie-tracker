@@ -1,1 +1,120 @@
-<h1>Calorie Tracker</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Health Tracker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="auth-view" class="container">
+        <h1 style="text-align: center;">Health AI</h1>
+        <div class="input-group">
+            <input type="email" id="email" placeholder="Enter Email">
+        </div>
+        <div class="input-group">
+            <input type="password" id="password" placeholder="Enter Password">
+        </div>
+        <button id="login-btn" class="primary-btn">Login / Sign Up</button>
+        <p id="login-error" style="color: #d63031; text-align: center; margin-top: 10px;"></p>
+    </div>
+
+    <div id="app-view" class="container hidden">
+        <nav class="segmented-control">
+            <button class="nav-btn active" onclick="showTab('home', this)">Home</button>
+            <button class="nav-btn" onclick="showTab('master', this)">Master</button>
+            <button class="nav-btn" onclick="showTab('stats', this)">Stats</button>
+            <button class="nav-btn" onclick="showTab('profile', this)">Profile</button>
+        </nav>
+
+        <section id="tab-home" class="tab-content">
+            <div class="stat-grid">
+                <div class="stat-card"><h3>Eaten</h3><p id="d-in">0</p></div>
+                <div class="stat-card"><h3>Burned</h3><p id="d-out">0</p></div>
+                <div class="stat-card highlight"><h3>Net Deficit</h3><p id="d-net">0</p></div>
+            </div>
+
+            <div class="input-group">
+                <input type="text" id="ai-input" placeholder="Example: 2 eggs and toast, or Ran 3 miles...">
+                <button id="ai-btn">Analyze Entry</button>
+            </div>
+            <p id="status-msg" style="text-align: center; color: #636e72; font-size: 0.9rem; min-height: 20px;"></p>
+
+            <details style="margin-bottom: 20px; color: #636e72;">
+                <summary style="cursor: pointer; font-weight: 500;">View Today's Macros</summary>
+                <div class="advanced-grid" style="margin-top: 10px;">
+                    <div class="adv-card"><small>PROTEIN</small><b id="h-pro">0</b>g</div>
+                    <div class="adv-card"><small>FIBER</small><b id="h-fib">0</b>g</div>
+                    <div class="adv-card"><small>SUGAR</small><b id="h-sug">0</b>g</div>
+                    <div class="adv-card"><small>FAT</small><b id="h-fat">0</b>g</div>
+                </div>
+            </details>
+
+            <div id="log-list"></div>
+        </section>
+
+        <section id="tab-master" class="tab-content hidden">
+            <h3 style="margin-top: 0;">History Log</h3>
+            <div id="master-list"></div>
+        </section>
+
+        <section id="tab-stats" class="tab-content hidden">
+            <h3 style="margin-top: 0;">Performance</h3>
+            <div class="segmented-control" style="background: #ecf0f1;">
+                <button id="btn-7" class="nav-btn">Past 7 Days</button>
+                <button id="btn-30" class="nav-btn">Past 30 Days</button>
+            </div>
+            <div id="stats-output" class="advanced-box">
+                <p style="text-align: center; color: #b2bec3;">Select a timeframe to calculate averages.</p>
+            </div>
+        </section>
+
+        <section id="tab-profile" class="tab-content hidden">
+            <h3 style="margin-top: 0;">Your Stats</h3>
+            
+            <div class="profile-group">
+                <label>Biological Sex</label>
+                <select id="p-gender">
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                </select>
+            </div>
+
+            <div class="profile-group">
+                <label>Age (years)</label>
+                <input type="number" id="p-age" placeholder="e.g. 30">
+            </div>
+
+            <div class="profile-group">
+                <label>Height (inches)</label>
+                <input type="number" id="p-height" placeholder="e.g. 70">
+            </div>
+
+            <div class="profile-group">
+                <label>Current Weight (lbs)</label>
+                <input type="number" id="p-weight" placeholder="e.g. 180">
+            </div>
+
+            <div class="bmr-box">
+                <span style="display: block; font-size: 0.8rem; text-transform: uppercase; color: #636e72;">Daily Metabolic Burn (BMR)</span>
+                <span id="p-bmr-display" style="font-size: 2rem; font-weight: 800; color: var(--primary);">0</span>
+                <span style="font-size: 0.9rem; color: #636e72;">kcal/day</span>
+            </div>
+
+            <button id="save-profile" class="primary-btn">Save & Update</button>
+            <button id="logout-btn" style="width: 100%; margin-top: 20px; background: transparent; color: #d63031; border: 1px solid #d63031; padding: 12px; border-radius: 12px; cursor: pointer;">Log Out</button>
+        </section>
+    </div>
+
+    <script type="module" src="auth.js"></script>
+    <script>
+        function showTab(tabName, el) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+            document.getElementById('tab-' + tabName).classList.remove('hidden');
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            el.classList.add('active');
+        }
+    </script>
+</body>
+</html>
