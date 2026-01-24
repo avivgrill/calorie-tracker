@@ -202,10 +202,11 @@ function renderHome() {
     document.getElementById('d-out').innerText = Math.round(t.out);
     document.getElementById('d-net').innerText = Math.round(netDeficit);
     document.getElementById('d-fat-burned').innerText = fatBurned.toFixed(2);
-    document.getElementById('h-pro').innerText = t.p.toFixed(0);
-    document.getElementById('h-fib').innerText = t.f.toFixed(0);
-    document.getElementById('h-sug').innerText = t.s.toFixed(0);
-    document.getElementById('h-fat').innerText = t.ft.toFixed(0);
+    // Round macros to nearest tenth of a gram
+    document.getElementById('h-pro').innerText = (Math.round(t.p * 10) / 10).toFixed(1);
+    document.getElementById('h-fib').innerText = (Math.round(t.f * 10) / 10).toFixed(1);
+    document.getElementById('h-sug').innerText = (Math.round(t.s * 10) / 10).toFixed(1);
+    document.getElementById('h-fat').innerText = (Math.round(t.ft * 10) / 10).toFixed(1);
     
     // Reset delete button
     updateDeleteButton();
