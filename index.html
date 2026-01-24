@@ -10,10 +10,33 @@
 
     <div id="auth-view" class="container">
         <h1 style="text-align: center;">Health AI</h1>
-        <div class="input-group">
-            <input type="email" id="email" placeholder="Enter Your Email">
+        
+        <!-- Tab switcher for login methods -->
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+            <button id="tab-magic-link" class="auth-tab active" onclick="switchAuthTab('magic-link')">Magic Link</button>
+            <button id="tab-password" class="auth-tab" onclick="switchAuthTab('password')">Password</button>
         </div>
-        <button id="login-btn" class="primary-btn">Send Login Link</button>
+
+        <!-- Magic Link Login -->
+        <div id="magic-link-form">
+            <div class="input-group">
+                <input type="email" id="email" placeholder="Enter Your Email">
+            </div>
+            <button id="login-btn" class="primary-btn">Send Login Link</button>
+        </div>
+
+        <!-- Password Login/Signup -->
+        <div id="password-form" style="display: none;">
+            <div class="input-group">
+                <input type="email" id="email-password" placeholder="Enter Your Email">
+            </div>
+            <div class="input-group">
+                <input type="password" id="password" placeholder="Enter Your Password">
+            </div>
+            <button id="signin-btn" class="primary-btn">Sign In</button>
+            <button id="signup-btn" class="secondary-btn" style="margin-top: 10px;">Create Account</button>
+        </div>
+
         <p id="login-error" style="color: #d63031; text-align: center; margin-top: 10px;"></p>
         <p id="login-success" style="color: #00b894; text-align: center; margin-top: 10px; display: none;"></p>
     </div>

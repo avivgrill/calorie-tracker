@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getAuth, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, collection, addDoc, query, where, getDocs, orderBy, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { firebaseConfig } from "./firebase-config.js";
@@ -517,6 +517,37 @@ if (document.readyState === 'loading') {
     handleEmailLinkSignIn();
 }
 
+// ===============================
+// AUTH - Login Handlers
+// ===============================
+
+// Tab switcher for auth methods
+window.switchAuthTab = (tab) => {
+    const magicLinkTab = document.getElementById('tab-magic-link');
+    const passwordTab = document.getElementById('tab-password');
+    const magicLinkForm = document.getElementById('magic-link-form');
+    const passwordForm = document.getElementById('password-form');
+    const errorEl = document.getElementById('login-error');
+    const successEl = document.getElementById('login-success');
+    
+    // Clear messages
+    errorEl.innerText = "";
+    successEl.style.display = 'none';
+    
+    if (tab === 'magic-link') {
+        magicLinkTab.classList.add('active');
+        passwordTab.classList.remove('active');
+        magicLinkForm.style.display = 'block';
+        passwordForm.style.display = 'none';
+    } else {
+        magicLinkTab.classList.remove('active');
+        passwordTab.classList.add('active');
+        magicLinkForm.style.display = 'none';
+        passwordForm.style.display = 'block';
+    }
+};
+
+// Magic Link Login
 document.getElementById('login-btn').onclick = async () => {
     const email = document.getElementById('email').value.trim();
     const errorEl = document.getElementById('login-error');
@@ -584,6 +615,96 @@ document.getElementById('login-btn').onclick = async () => {
     } finally {
         btn.disabled = false;
         btn.innerText = "Send Login Link";
+    }
+};
+
+// Password Sign In
+document.getElementById('signin-btn').onclick = async () => {
+    const email = document.getElementById('email-password').value.trim();
+    const password = document.getElementById('password').value;
+    const errorEl = document.getElementById('login-error');
+    const successEl = document.getElementById('login-success');
+    const btn = document.getElementById('signin-btn');
+    
+    if (!email || !password) {
+        errorEl.innerText = "Please enter both email and password";
+        successEl.style.display = 'none';
+        return;
+    }
+    
+    errorEl.innerText = "";
+    successEl.style.display = 'none';
+    btn.disabled = true;
+    btn.innerText = "Signing in...";
+    
+    try {
+        await signInWithEmailAndPassword(auth, email, password);
+        // User will be automatically redirected by onAuthStateChanged
+    } catch (err) {
+        console.error('Sign in error:', err);
+        let errorMessage = "Error: " + err.message;
+        
+        if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+            errorMessage = "Incorrect email or password";
+        } else if (err.code === 'auth/user-not-found') {
+            errorMessage = "No account found with this email. Try creating an account first.";
+        } else if (err.code === 'auth/invalid-email') {
+            errorMessage = "Invalid email address";
+        }
+        
+        errorEl.innerText = errorMessage;
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "Sign In";
+    }
+};
+
+// Password Sign Up
+document.getElementById('signup-btn').onclick = async () => {
+    const email = document.getElementById('email-password').value.trim();
+    const password = document.getElementById('password').value;
+    const errorEl = document.getElementById('login-error');
+    const successEl = document.getElementById('login-success');
+    const btn = document.getElementById('signup-btn');
+    
+    if (!email || !password) {
+        errorEl.innerText = "Please enter both email and password";
+        successEl.style.display = 'none';
+        return;
+    }
+    
+    if (password.length < 6) {
+        errorEl.innerText = "Password must be at least 6 characters";
+        successEl.style.display = 'none';
+        return;
+    }
+    
+    errorEl.innerText = "";
+    successEl.style.display = 'none';
+    btn.disabled = true;
+    btn.innerText = "Creating account...";
+    
+    try {
+        await createUserWithEmailAndPassword(auth, email, password);
+        // User will be automatically redirected by onAuthStateChanged
+        successEl.innerText = "✓ Account created successfully!";
+        successEl.style.display = 'block';
+    } catch (err) {
+        console.error('Sign up error:', err);
+        let errorMessage = "Error: " + err.message;
+        
+        if (err.code === 'auth/email-already-in-use') {
+            errorMessage = "An account with this email already exists. Try signing in instead.";
+        } else if (err.code === 'auth/invalid-email') {
+            errorMessage = "Invalid email address";
+        } else if (err.code === 'auth/weak-password') {
+            errorMessage = "Password is too weak. Please use a stronger password.";
+        }
+        
+        errorEl.innerText = errorMessage;
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "Create Account";
     }
 };
 
