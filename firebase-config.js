@@ -1,5 +1,5 @@
 export const firebaseConfig = {
-  apiKey: "REMOVED_FIREBASE_KEY",
+  apiKey: "AIzaSyC04YVOXJ8OcejkZ6yoW82qoboaydVZNo8",
   authDomain: "calorie-tracker-app-1a441.firebaseapp.com",
   projectId: "calorie-tracker-app-1a441",
   storageBucket: "calorie-tracker-app-1a441.firebasestorage.app",
