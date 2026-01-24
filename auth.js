@@ -6,7 +6,13 @@ import { firebaseConfig } from "./firebase-config.js";
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const GEMINI_KEY = "AIzaSyB4wv6tRcAnIzQGrBLaD5MakVIbxlurxTg";
+const GEMINI_KEY = "REMOVED_GEMINI_KEY";
+// Optional external data sources for higher accuracy
+const NUTRITIONIX_APP_ID = "";
+const NUTRITIONIX_API_KEY = "";
+const USDA_API_KEY = "";
+
+const estimationCache = new Map();
 
 let allLogs = [];
 
@@ -16,108 +22,300 @@ onAuthStateChanged(auth, (user) => {
     if (user) { loadData(user.uid); loadProfile(user.uid); }
 });
 
-// --- AI LOGIC (With Safety) ---
+// --- AI LOGIC (Unified Estimation with Expert Prompt) ---
+
+/**
+ * Main entry point for AI-powered calorie estimation.
+ * Uses a comprehensive prompt that parses, estimates, and summarizes in one call.
+ */
 async function callGemini(text) {
+    const userWeightLbs = getUserWeightLbs();
+    const result = await estimateWithGemini(text, userWeightLbs);
+    return result;
+}
+
+/**
+ * Get user weight in pounds from profile, with fallback
+ */
+function getUserWeightLbs() {
+    const weightEl = document.getElementById("p-weight");
+    const lbs = weightEl ? parseFloat(weightEl.value) : NaN;
+    return !isNaN(lbs) && lbs > 0 ? lbs : 154; // Default ~70kg
+}
+
+/**
+ * Unified Gemini call with expert-level prompt for accurate calorie estimation.
+ * Handles both food and exercise in a single API call with detailed reasoning.
+ */
+async function estimateWithGemini(text, userWeightLbs) {
+    const cacheKey = `unified:${text.toLowerCase().trim()}:${userWeightLbs}`;
+    if (estimationCache.has(cacheKey)) {
+        return estimationCache.get(cacheKey);
+    }
+
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
+    
+    const prompt = buildExpertPrompt(text, userWeightLbs);
     
     const body = {
         contents: [{
-            parts: [{
-                text: `You are an expert nutritionist with access to accurate brand food nutrition databases. Your task is to analyze user input and extract precise nutrition information.
-
-User Input: "${text}"
-
-CRITICAL INSTRUCTIONS:
-1. Identify if this is primarily a "meal" or "exercise".
-2. For BRAND-SPECIFIC FOODS (e.g., "Pringles", "McDonald's Big Mac", "Coca-Cola", "Oreos", "Cheerios"):
-   - Use your knowledge of actual nutrition facts for these specific branded products
-   - Look up standard serving sizes and nutrition values for the brand mentioned
-   - If a quantity is mentioned (e.g., "2 Pringles", "a can of Coke"), calculate accordingly
-   - Be precise with brand-specific data, not generic estimates
-3. For RAMBLING or STORY-LIKE INPUTS:
-   - Extract all food items mentioned, even if scattered throughout the text
-   - Break down complex narratives into individual food components
-   - Sum all calories and macros from all mentioned foods
-   - Ignore irrelevant details, focus on food/exercise mentions
-   - Example: "So I was at the store and then I had like 3 Pringles and also some water and then later I ate a sandwich" → extract: 3 Pringles + sandwich
-4. For PORTIONS and FRACTIONS:
-   - "3/5 of a piece of cheese" = (Standard Calorie * 0.6)
-   - "half a pizza" = (Full Pizza Calories * 0.5)
-   - Always calculate precise portions
-5. For COOKING METHODS:
-   - "grilled with butter" → add ~100 calories for butter
-   - "fried" → add ~50-150 calories depending on amount
-   - "with olive oil" → add ~120 calories per tablespoon
-6. For EXERCISE:
-   - Use intensity and duration to estimate burn accurately
-   - "heavy lifting for 30 min" vs "stretching for 10 min" have very different burns
-7. ALWAYS OUTPUT NUMBERS:
-   - If uncertain, make your best educated estimate based on similar foods
-   - Never return null, undefined, or non-numeric values
-   - All numbers must be integers or decimals (e.g., 250, 12.5, 0)
-   - If you cannot determine a value, use 0 but still provide other accurate values
-
-Output ONLY valid JSON in this exact structure (no markdown, no code blocks, just pure JSON):
-{"type":"meal"|"exercise","name":"Short Descriptive Name","cals":number,"pro":number,"fib":number,"sug":number,"fat":number}
-
-IMPORTANT: 
-- "cals", "pro", "fib", "sug", "fat" must ALL be numbers (not strings, not null)
-- "name" should be a concise description (e.g., "3 Pringles Original", "Big Mac", "30 min heavy lifting")
-- Extract the essence even from rambling text - focus on actionable nutrition data`
-            }]
-        }]
+            parts: [{ text: prompt }]
+        }],
+        generationConfig: {
+            temperature: 0.1, // Low temperature for more consistent/accurate estimates
+        }
     };
 
+    const res = await fetch(url, { method: "POST", body: JSON.stringify(body) });
+    const data = await res.json();
+    
+    if (data.error) {
+        throw new Error(data.error.message);
+    }
+
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const parsed = extractJsonFromResponse(rawText);
+    
+    // Validate and normalize the response
+    const result = validateAndNormalizeResult(parsed, text);
+    
+    estimationCache.set(cacheKey, result);
+    return result;
+}
+
+/**
+ * Build the expert-level prompt for accurate calorie/exercise estimation
+ */
+function buildExpertPrompt(userText, userWeightLbs) {
+    return `You are an expert nutritionist and exercise physiologist with comprehensive knowledge of:
+- USDA FoodData Central database
+- Restaurant nutrition data (Chipotle, McDonald's, Starbucks, etc.)
+- Packaged food nutrition labels
+- Exercise MET values and calorie burn calculations
+
+Your task: Analyze the user's input and provide accurate calorie estimates.
+
+USER INPUT: "${userText}"
+USER WEIGHT: ${userWeightLbs} lbs (${(userWeightLbs * 0.453592).toFixed(1)} kg)
+
+INSTRUCTIONS:
+
+1. DETERMINE TYPE: Is this food/drink (meal) or physical activity (exercise)?
+
+2. FOR FOOD/MEALS:
+   - Identify EACH distinct food item mentioned
+   - For each item, determine:
+     * Specific food type (e.g., "white rice, cooked" not just "rice")
+     * Portion size (infer from context, or use standard serving if unspecified)
+     * Brand/restaurant if mentioned (use their actual nutrition data)
+     * Preparation method if relevant (fried vs grilled changes calories significantly)
+   - Calculate calories and macros for each item
+   - Sum totals
+
+   PORTION SIZE GUIDELINES:
+   - "a bowl of rice" = ~1.5 cups cooked = ~300 cal
+   - "a slice of pizza" = 1/8 of 14" pizza = ~250-350 cal depending on toppings
+   - "a bite" = approximately 1/10 to 1/15 of the full item
+   - "a handful" of nuts = ~1 oz = ~160-180 cal
+   - "some" without context = assume 1 standard serving
+   - Restaurant portions are typically 1.5-2x standard serving sizes
+
+   COMMON REFERENCE VALUES:
+   - Chipotle burrito bowl with rice, beans, meat, cheese, guac = ~900-1100 cal
+   - McDonald's Big Mac = 563 cal
+   - Starbucks grande latte = 190 cal (whole milk)
+   - Slice of cheese pizza (14") = 285 cal
+   - Grilled chicken breast (6 oz) = 280 cal
+   - Cup of cooked white rice = 205 cal
+   - Medium banana = 105 cal
+   - Tablespoon olive oil = 119 cal
+
+3. FOR EXERCISE:
+   - Identify the activity type
+   - Determine duration (infer reasonable duration if not specified)
+   - Determine intensity (low/moderate/high)
+   - Calculate calories burned using: Calories = MET × weight(kg) × time(hours)
+   
+   MET VALUES:
+   - Walking (3 mph): 3.5 | Walking brisk (4 mph): 4.3
+   - Running (5 mph): 8.3 | Running (6 mph): 9.8 | Running (8 mph): 11.8
+   - Cycling (moderate): 7.5 | Cycling (vigorous): 10
+   - Swimming (moderate): 6 | Swimming (vigorous): 9.5
+   - Weight training: 5-6 | HIIT: 8-10
+   - Yoga: 3 | Pilates: 3.5
+   
+   If duration not specified, assume: walking=30min, running=30min, gym=45min
+
+4. GENERATE A CLEAN SUMMARY NAME:
+   - Convert informal language to clear, specific descriptions
+   - Include quantities and portions
+   - Examples:
+     * "had some pizza at dominos" → "2 slices Domino's pepperoni pizza"
+     * "ate half my friend's sandwich" → "1/2 turkey sandwich"
+     * "went for a run" → "30 min run (moderate pace)"
+     * "3 bites of cake" → "3 bites chocolate cake (~1/5 slice)"
+
+RESPOND WITH ONLY THIS JSON (no markdown, no explanation):
+{
+  "type": "meal" or "exercise",
+  "name": "clean, detailed summary with quantities",
+  "items": [
+    {
+      "name": "specific item name",
+      "quantity": "amount with unit",
+      "cals": number,
+      "pro": number,
+      "fib": number,
+      "sug": number,
+      "fat": number,
+      "notes": "brief reasoning"
+    }
+  ],
+  "cals": total_calories_number,
+  "pro": total_protein_grams,
+  "fib": total_fiber_grams,
+  "sug": total_sugar_grams,
+  "fat": total_fat_grams,
+  "confidence": "low" or "medium" or "high"
+}
+
+For exercise, set pro/fib/sug/fat to 0.
+
+IMPORTANT: 
+- Be accurate, not conservative. Use real nutritional data.
+- For branded/restaurant items, use their actual published nutrition info.
+- If truly uncertain, provide your best estimate with "low" confidence.
+- ALWAYS return valid JSON with numeric values for cals/pro/fib/sug/fat.`;
+}
+
+/**
+ * Extract JSON from Gemini response (handles markdown code blocks)
+ */
+function extractJsonFromResponse(rawText) {
+    // Remove markdown code blocks if present
+    let cleaned = rawText.trim();
+    if (cleaned.startsWith("```json")) {
+        cleaned = cleaned.slice(7);
+    } else if (cleaned.startsWith("```")) {
+        cleaned = cleaned.slice(3);
+    }
+    if (cleaned.endsWith("```")) {
+        cleaned = cleaned.slice(0, -3);
+    }
+    cleaned = cleaned.trim();
+
+    // Find JSON object boundaries
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    
+    if (start === -1 || end === -1) {
+        throw new Error("AI response did not contain valid JSON");
+    }
+
+    const jsonStr = cleaned.substring(start, end + 1);
+    
     try {
-        const res = await fetch(url, { method: 'POST', body: JSON.stringify(body) });
-        const data = await res.json();
-        
-        if (data.error) throw new Error(data.error.message);
-        
-        // Clean up response: Find the first { and last } to avoid extra text
-        let raw = data.candidates[0].content.parts[0].text;
-        const start = raw.indexOf('{');
-        const end = raw.lastIndexOf('}');
-        
-        if (start === -1 || end === -1) throw new Error("AI could not format data.");
-        
-        const cleanJson = JSON.parse(raw.substring(start, end + 1));
-
-        // Robust number parsing with fallbacks
-        const parseNumber = (val, fallback = 0) => {
-            if (val === null || val === undefined || val === '') return fallback;
-            const num = Number(val);
-            return isNaN(num) ? fallback : Math.max(0, num); // Ensure non-negative
-        };
-
-        // Final check to ensure all values are valid numbers
-        const result = {
-            type: (cleanJson.type === "exercise" || cleanJson.type === "meal") ? cleanJson.type : "meal",
-            name: (cleanJson.name && typeof cleanJson.name === "string" && cleanJson.name.trim() !== "" && cleanJson.name !== "string") 
-                ? cleanJson.name.trim() 
-                : "Food Entry",
-            cals: parseNumber(cleanJson.cals, 0),
-            pro: parseNumber(cleanJson.pro, 0),
-            fib: parseNumber(cleanJson.fib, 0),
-            sug: parseNumber(cleanJson.sug, 0),
-            fat: parseNumber(cleanJson.fat, 0)
-        };
-
-        return result;
-    } catch (err) {
-        // Enhanced error handling - return a safe default instead of crashing
-        console.error("Gemini API Error:", err);
-        return {
-            type: "meal",
-            name: "Error - Please try rephrasing",
-            cals: 0,
-            pro: 0,
-            fib: 0,
-            sug: 0,
-            fat: 0
-        };
+        return JSON.parse(jsonStr);
+    } catch (e) {
+        throw new Error("Failed to parse AI response as JSON: " + e.message);
     }
 }
+
+/**
+ * Validate and normalize the parsed result
+ */
+function validateAndNormalizeResult(parsed, originalText) {
+    // Ensure required fields exist
+    if (!parsed || typeof parsed !== "object") {
+        throw new Error("Invalid response structure from AI");
+    }
+
+    const type = parsed.type === "exercise" ? "exercise" : "meal";
+    
+    // Extract and validate calorie value
+    let cals = parseFloat(parsed.cals);
+    if (isNaN(cals) || cals < 0) {
+        throw new Error("Invalid calorie value in AI response");
+    }
+    
+    // Apply sanity checks
+    cals = applySanityChecks(cals, type, originalText);
+    
+    // Extract macros with defaults
+    const pro = Math.max(0, parseFloat(parsed.pro) || 0);
+    const fib = Math.max(0, parseFloat(parsed.fib) || 0);
+    const sug = Math.max(0, parseFloat(parsed.sug) || 0);
+    const fat = Math.max(0, parseFloat(parsed.fat) || 0);
+    
+    // Build clean name
+    let name = String(parsed.name || "").trim();
+    if (!name) {
+        name = type === "exercise" ? "Exercise" : "Food entry";
+    }
+    // Truncate if too long
+    if (name.length > 100) {
+        name = name.substring(0, 97) + "...";
+    }
+    
+    const confidence = ["low", "medium", "high"].includes(parsed.confidence) 
+        ? parsed.confidence 
+        : "medium";
+
+    return {
+        type,
+        name,
+        cals: Math.round(cals),
+        pro: Math.round(pro * 10) / 10,
+        fib: Math.round(fib * 10) / 10,
+        sug: Math.round(sug * 10) / 10,
+        fat: Math.round(fat * 10) / 10,
+        confidence,
+        source: "gemini"
+    };
+}
+
+/**
+ * Apply sanity checks to calorie values
+ */
+function applySanityChecks(cals, type, originalText) {
+    const lowerText = originalText.toLowerCase();
+    
+    if (type === "meal") {
+        // Check for small portions mentioned
+        const isSmallPortion = /\b(bite|sip|taste|nibble|tiny|small)\b/.test(lowerText);
+        const isLargeMeal = /\b(feast|buffet|all you can eat|huge|massive|large)\b/.test(lowerText);
+        
+        // Minimum sanity: even a bite should be at least 5 calories
+        if (cals < 5 && !isSmallPortion) {
+            console.warn("Calorie value suspiciously low, adjusting minimum");
+            cals = Math.max(cals, 50);
+        }
+        
+        // Maximum sanity: single meal rarely exceeds 3000 cal unless specified
+        if (cals > 3000 && !isLargeMeal) {
+            console.warn("Calorie value very high for single entry:", cals);
+            // Don't cap, but log warning - the AI might be right for multiple items
+        }
+        
+        // Very small portions check
+        if (isSmallPortion && cals > 500) {
+            console.warn("High calories for described small portion");
+        }
+    } else {
+        // Exercise: rarely burns more than 1500 cal in a single session
+        if (cals > 1500) {
+            console.warn("Very high exercise calorie burn:", cals);
+        }
+        
+        // Minimum: even light activity burns something
+        if (cals < 10) {
+            cals = Math.max(cals, 20);
+        }
+    }
+    
+    return cals;
+}
+
 // --- DATA ENGINE ---
 async function loadData(uid) {
     const q = query(collection(db, "logs"), where("uid", "==", uid), orderBy("timestamp", "desc"));
@@ -323,20 +521,27 @@ document.getElementById('ai-btn').onclick = async () => {
     
     try {
         const result = await callGemini(originalValue);
-        
-        // Check if we got an error placeholder result
-        if (result.name === "Error - Please try rephrasing") {
-            status.innerText = "Could not parse entry. Try being more specific (e.g., '2 Pringles' or 'grilled chicken breast').";
-            return;
+
+        // Validate result before saving
+        if (!result || typeof result !== "object") {
+            throw new Error("Invalid response from AI");
         }
-        
-        // Always save the result - even if calories are 0, the AI made its best estimate
-        await addDoc(collection(db, "logs"), { uid: auth.currentUser.uid, timestamp: new Date(), ...result });
-        input.value = ""; 
-        status.innerText = "✓ Entry added successfully!";
+        if (typeof result.cals !== "number" || isNaN(result.cals)) {
+            throw new Error("Invalid calorie value received");
+        }
+
+        await addDoc(collection(db, "logs"), {
+            uid: auth.currentUser.uid,
+            timestamp: new Date(),
+            ...result
+        });
+
+        input.value = "";
+        const sourceLabel = result.source ? ` (${result.source})` : "";
+        status.innerText = `✓ Entry added successfully${sourceLabel}!`;
         setTimeout(() => { status.innerText = ""; }, 2000);
         loadData(auth.currentUser.uid);
-    } catch (err) { 
+    } catch (err) {
         console.error("Error adding entry:", err);
         status.innerText = "Error: " + (err.message || "Failed to process entry. Please try again.");
     }
