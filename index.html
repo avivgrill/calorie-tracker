@@ -10,23 +10,9 @@
 
     <div id="auth-view" class="container">
         <h1 style="text-align: center;">Health AI</h1>
-        
-        <!-- Tab switcher for login methods -->
-        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-            <button id="tab-magic-link" class="auth-tab active" onclick="switchAuthTab('magic-link')">Magic Link</button>
-            <button id="tab-password" class="auth-tab" onclick="switchAuthTab('password')">Password</button>
-        </div>
 
-        <!-- Magic Link Login -->
-        <div id="magic-link-form">
-            <div class="input-group">
-                <input type="email" id="email" placeholder="Enter Your Email">
-            </div>
-            <button id="login-btn" class="primary-btn">Send Login Link</button>
-        </div>
-
-        <!-- Password Login/Signup -->
-        <div id="password-form" style="display: none;">
+        <!-- Password Login/Signup (default) -->
+        <div id="password-form">
             <div class="input-group">
                 <input type="email" id="email-password" placeholder="Enter Your Email">
             </div>
@@ -35,6 +21,20 @@
             </div>
             <button id="signin-btn" class="primary-btn">Sign In</button>
             <button id="signup-btn" class="secondary-btn" style="margin-top: 10px;">Create Account</button>
+            <p style="text-align: center; margin-top: 15px;">
+                <a href="#" id="switch-to-magic" style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">Use magic link instead →</a>
+            </p>
+        </div>
+
+        <!-- Magic Link Login (hidden by default) -->
+        <div id="magic-link-form" style="display: none;">
+            <div class="input-group">
+                <input type="email" id="email" placeholder="Enter Your Email">
+            </div>
+            <button id="login-btn" class="primary-btn">Send Login Link</button>
+            <p style="text-align: center; margin-top: 15px;">
+                <a href="#" id="switch-to-password" style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">← Back to password login</a>
+            </p>
         </div>
 
         <p id="login-error" style="color: #d63031; text-align: center; margin-top: 10px;"></p>

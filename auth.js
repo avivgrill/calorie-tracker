@@ -523,8 +523,6 @@ if (document.readyState === 'loading') {
 
 // Tab switcher for auth methods
 window.switchAuthTab = (tab) => {
-    const magicLinkTab = document.getElementById('tab-magic-link');
-    const passwordTab = document.getElementById('tab-password');
     const magicLinkForm = document.getElementById('magic-link-form');
     const passwordForm = document.getElementById('password-form');
     const errorEl = document.getElementById('login-error');
@@ -535,16 +533,23 @@ window.switchAuthTab = (tab) => {
     successEl.style.display = 'none';
     
     if (tab === 'magic-link') {
-        magicLinkTab.classList.add('active');
-        passwordTab.classList.remove('active');
         magicLinkForm.style.display = 'block';
         passwordForm.style.display = 'none';
     } else {
-        magicLinkTab.classList.remove('active');
-        passwordTab.classList.add('active');
         magicLinkForm.style.display = 'none';
         passwordForm.style.display = 'block';
     }
+};
+
+// Link click handlers
+document.getElementById('switch-to-magic').onclick = (e) => {
+    e.preventDefault();
+    switchAuthTab('magic-link');
+};
+
+document.getElementById('switch-to-password').onclick = (e) => {
+    e.preventDefault();
+    switchAuthTab('password');
 };
 
 // Magic Link Login
