@@ -19,10 +19,27 @@
             <div class="input-group">
                 <input type="password" id="password" placeholder="Enter Your Password">
             </div>
+            <p style="text-align: right; margin-top: -10px; margin-bottom: 10px;">
+                <a href="#" id="forgot-password-link" style="color: var(--primary); text-decoration: none; font-size: 0.85rem;">Forgot password?</a>
+            </p>
             <button id="signin-btn" class="primary-btn">Sign In</button>
             <button id="signup-btn" class="secondary-btn" style="margin-top: 10px;">Create Account</button>
             <p style="text-align: center; margin-top: 15px;">
                 <a href="#" id="switch-to-magic" style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">Use magic link instead →</a>
+            </p>
+        </div>
+
+        <!-- Forgot Password Form -->
+        <div id="forgot-password-form" style="display: none;">
+            <p style="text-align: center; color: var(--text-light); margin-bottom: 20px; font-size: 0.95rem;">
+                Enter your email and we'll send you a link to reset your password.
+            </p>
+            <div class="input-group">
+                <input type="email" id="email-reset" placeholder="Enter Your Email">
+            </div>
+            <button id="reset-btn" class="primary-btn">Send Reset Link</button>
+            <p style="text-align: center; margin-top: 15px;">
+                <a href="#" id="back-to-login" style="color: var(--primary); text-decoration: none; font-size: 0.9rem;">← Back to login</a>
             </p>
         </div>
 

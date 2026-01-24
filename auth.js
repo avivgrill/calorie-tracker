@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getAuth, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, collection, addDoc, query, where, getDocs, orderBy, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
 import { firebaseConfig } from "./firebase-config.js";
@@ -525,6 +525,7 @@ if (document.readyState === 'loading') {
 window.switchAuthTab = (tab) => {
     const magicLinkForm = document.getElementById('magic-link-form');
     const passwordForm = document.getElementById('password-form');
+    const forgotPasswordForm = document.getElementById('forgot-password-form');
     const errorEl = document.getElementById('login-error');
     const successEl = document.getElementById('login-success');
     
@@ -535,9 +536,15 @@ window.switchAuthTab = (tab) => {
     if (tab === 'magic-link') {
         magicLinkForm.style.display = 'block';
         passwordForm.style.display = 'none';
+        forgotPasswordForm.style.display = 'none';
+    } else if (tab === 'forgot-password') {
+        magicLinkForm.style.display = 'none';
+        passwordForm.style.display = 'none';
+        forgotPasswordForm.style.display = 'block';
     } else {
         magicLinkForm.style.display = 'none';
         passwordForm.style.display = 'block';
+        forgotPasswordForm.style.display = 'none';
     }
 };
 
@@ -548,6 +555,21 @@ document.getElementById('switch-to-magic').onclick = (e) => {
 };
 
 document.getElementById('switch-to-password').onclick = (e) => {
+    e.preventDefault();
+    switchAuthTab('password');
+};
+
+document.getElementById('forgot-password-link').onclick = (e) => {
+    e.preventDefault();
+    // Pre-fill email if entered
+    const emailPassword = document.getElementById('email-password').value.trim();
+    if (emailPassword) {
+        document.getElementById('email-reset').value = emailPassword;
+    }
+    switchAuthTab('forgot-password');
+};
+
+document.getElementById('back-to-login').onclick = (e) => {
     e.preventDefault();
     switchAuthTab('password');
 };
@@ -710,6 +732,64 @@ document.getElementById('signup-btn').onclick = async () => {
     } finally {
         btn.disabled = false;
         btn.innerText = "Create Account";
+    }
+};
+
+// Password Reset
+document.getElementById('reset-btn').onclick = async () => {
+    const email = document.getElementById('email-reset').value.trim();
+    const errorEl = document.getElementById('login-error');
+    const successEl = document.getElementById('login-success');
+    const btn = document.getElementById('reset-btn');
+    
+    if (!email) {
+        errorEl.innerText = "Please enter your email address";
+        successEl.style.display = 'none';
+        return;
+    }
+    
+    if (!email.includes('@')) {
+        errorEl.innerText = "Please enter a valid email address";
+        successEl.style.display = 'none';
+        return;
+    }
+    
+    errorEl.innerText = "";
+    successEl.style.display = 'none';
+    btn.disabled = true;
+    btn.innerText = "Sending...";
+    
+    try {
+        await sendPasswordResetEmail(auth, email);
+        successEl.innerText = `✓ Password reset link sent to ${email}! Check your inbox.`;
+        successEl.style.display = 'block';
+        document.getElementById('email-reset').value = "";
+        
+        // Return to login after 3 seconds
+        setTimeout(() => {
+            switchAuthTab('password');
+        }, 3000);
+    } catch (err) {
+        console.error('Password reset error:', err);
+        let errorMessage = "Error: " + err.message;
+        
+        if (err.code === 'auth/user-not-found') {
+            // Don't reveal if user exists for security
+            successEl.innerText = `✓ If an account exists with ${email}, a password reset link has been sent.`;
+            successEl.style.display = 'block';
+            document.getElementById('email-reset').value = "";
+            setTimeout(() => {
+                switchAuthTab('password');
+            }, 3000);
+        } else if (err.code === 'auth/invalid-email') {
+            errorMessage = "Invalid email address";
+            errorEl.innerText = errorMessage;
+        } else {
+            errorEl.innerText = errorMessage;
+        }
+    } finally {
+        btn.disabled = false;
+        btn.innerText = "Send Reset Link";
     }
 };
 
