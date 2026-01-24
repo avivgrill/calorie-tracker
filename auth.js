@@ -350,7 +350,6 @@ function renderHome() {
     document.getElementById('h-fib').innerText = t.f.toFixed(0);
     document.getElementById('h-sug').innerText = t.s.toFixed(0);
     document.getElementById('h-fat').innerText = t.ft.toFixed(0);
-    document.getElementById('h-fat-burned').innerText = fatBurned.toFixed(2);
     
     // Reset delete button
     updateDeleteButton();

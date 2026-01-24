@@ -31,12 +31,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 
 /* Stats Grid */
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
-.stat-grid-2x2 { display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); gap: 10px; margin-bottom: 20px; }
+.stat-grid-2x2 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }
 .stat-card { background: #f8f9fa; padding: 15px 10px; text-align: center; border-radius: 16px; border: 1px solid #edf2f7; }
 .stat-card h3 { margin: 0 0 5px; font-size: 0.7rem; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; }
 .stat-card p { margin: 0; font-size: 1.3rem; font-weight: 800; color: var(--text-dark); }
-.highlight { background: var(--primary); border: none; }
-.highlight h3, .highlight p { color: white; }
+.stat-card.eaten { background: var(--meal-bg); border-color: var(--meal-border); }
+.stat-card.burned { background: var(--ex-bg); border-color: var(--ex-border); }
+.highlight { background: #f8f9fa; border: 1px solid #edf2f7; }
+.highlight h3, .highlight p { color: var(--text-dark); }
 
 /* Log Entries */
 .entry { display: flex; justify-content: space-between; align-items: center; padding: 16px; margin-bottom: 12px; border-radius: 16px; border-left: 5px solid #ccc; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
@@ -51,12 +53,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 /* Advanced Stats */
 .advanced-box { padding: 20px; background: #f1f2f6; border-radius: 18px; margin-top: 15px; }
 .advanced-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 15px; }
+.macros-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .adv-card { background: white; padding: 10px 12px; border-radius: 14px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
 .adv-card small { display: block; font-size: 0.7rem; color: #b2bec3; font-weight: 700; margin-bottom: 4px; }
 .adv-card b { font-size: 1.1rem; color: var(--text-dark); }
 .deficit-formula {
     font-size: 0.65rem;
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--text-light);
     margin-top: 4px;
     font-weight: 400;
     line-height: 1.2;
