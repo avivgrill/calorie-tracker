@@ -21,7 +21,7 @@ exports.estimateCalories = onCall(
       );
     }
 
-    const { userText, userWeightLbs } = request.data;
+    const { userText, userWeightLbs, userHeightInches, userAge, userGender } = request.data;
 
     // Validate input
     if (!userText || typeof userText !== 'string') {
@@ -52,7 +52,7 @@ exports.estimateCalories = onCall(
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
 
   // Build the expert prompt
-  const prompt = buildExpertPrompt(userText, userWeightLbs);
+  const prompt = buildExpertPrompt(userText, userWeightLbs, userHeightInches, userAge, userGender);
 
   const requestBody = {
     contents: [{ parts: [{ text: prompt }] }],
@@ -92,11 +92,14 @@ exports.estimateCalories = onCall(
 });
 
 /**
- * Build a simple, direct prompt for accurate calorie/exercise estimation
+ * Build an enhanced prompt for accurate calorie/exercise estimation with METs guidance
  */
-function buildExpertPrompt(userText, userWeightLbs) {
+function buildExpertPrompt(userText, userWeightLbs, userHeightInches, userAge, userGender) {
+  const userWeightKg = (userWeightLbs * 0.453592).toFixed(1);
+  const userInfo = `User weight: ${userWeightLbs} lbs (${userWeightKg} kg)${userHeightInches ? `, Height: ${userHeightInches} inches` : ''}${userAge ? `, Age: ${userAge} years` : ''}${userGender ? `, Gender: ${userGender}` : ''}`;
+
   return `User input: "${userText}"
-User weight: ${userWeightLbs} lbs
+${userInfo}
 
 Analyze this and respond with ONLY this JSON format (no markdown, no backticks):
 {
@@ -110,6 +113,46 @@ Analyze this and respond with ONLY this JSON format (no markdown, no backticks):
   "confidence": "low" or "medium" or "high"
 }
 
-For exercise, use user weight to calculate calories burned. Set pro/fib/sug/fat to 0.
-For meals, estimate calories and macros. Be accurate based on your training data.`;
+FOR EXERCISES:
+1. Parse the input to extract: exercise type, duration, intensity level, and pace/speed if mentioned.
+   - Duration can be in minutes, hours, or distance-based (e.g., "ran 3 miles", "30 min jog", "cycling 45 min")
+   - Intensity keywords: light/easy, moderate/medium, vigorous/hard/intense, sprint
+   - Common formats: "ran 5 miles", "30 min moderate cycling", "1 hour yoga", "45 min swimming"
+
+2. Use METs (Metabolic Equivalent of Task) values for accurate calorie calculation:
+   - Formula: Calories = METs × weight(kg) × duration(hours)
+   - Example METs values:
+     * Running 5 mph (8 km/h): 8.3 METs
+     * Running 6 mph (9.7 km/h): 9.8 METs
+     * Running 7.5 mph (12 km/h): 11.5 METs
+     * Jogging: 7.0 METs
+     * Walking 3.5 mph: 4.3 METs
+     * Cycling moderate (12-14 mph): 6.8 METs
+     * Cycling vigorous (14-16 mph): 8.0 METs
+     * Swimming moderate: 6.0 METs
+     * Swimming vigorous: 10.0 METs
+     * Yoga: 3.0 METs
+     * Weight lifting: 5.0 METs
+     * HIIT: 8.5 METs
+     * Elliptical moderate: 5.0 METs
+     * Rowing moderate: 7.0 METs
+   
+3. For exercises not in the list above, estimate METs based on:
+   - Exercise type and typical intensity
+   - User's described intensity level
+   - Pace/speed if provided
+   - Use standard METs tables as reference
+
+4. Calculate calories using the METs formula, converting duration to hours.
+   - For distance-based entries (e.g., "ran 3 miles"), estimate duration based on typical pace for that exercise type and intensity, or use average pace if not specified.
+
+5. Set confidence based on:
+   - "high": Well-known exercise with clear duration and intensity
+   - "medium": Recognizable exercise but some ambiguity in duration/intensity
+   - "low": Unclear exercise type or missing key details
+
+6. Always set pro/fib/sug/fat to 0 for exercises.
+
+FOR MEALS:
+Estimate calories and macros based on your training data. Be accurate and use standard nutrition databases when possible.`;
 }

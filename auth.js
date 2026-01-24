@@ -40,7 +40,10 @@ onAuthStateChanged(auth, (user) => {
  */
 async function callGemini(text) {
     const userWeightLbs = getUserWeightLbs();
-    const result = await estimateWithGemini(text, userWeightLbs);
+    const userHeightInches = getUserHeightInches();
+    const userAge = getUserAge();
+    const userGender = getUserGender();
+    const result = await estimateWithGemini(text, userWeightLbs, userHeightInches, userAge, userGender);
     return result;
 }
 
@@ -54,11 +57,39 @@ function getUserWeightLbs() {
 }
 
 /**
+ * Get user height in inches from profile, with fallback
+ */
+function getUserHeightInches() {
+    const heightEl = document.getElementById("p-height");
+    const inches = heightEl ? parseFloat(heightEl.value) : NaN;
+    return !isNaN(inches) && inches > 0 ? inches : null;
+}
+
+/**
+ * Get user age from profile, with fallback
+ */
+function getUserAge() {
+    const ageEl = document.getElementById("p-age");
+    const age = ageEl ? parseInt(ageEl.value) : NaN;
+    return !isNaN(age) && age > 0 ? age : null;
+}
+
+/**
+ * Get user gender from profile, with fallback
+ */
+function getUserGender() {
+    const genderEl = document.getElementById("p-gender");
+    return genderEl ? genderEl.value : null;
+}
+
+/**
  * Unified Gemini call with expert-level prompt for accurate calorie estimation.
  * Calls secure Cloud Function instead of direct API.
  */
-async function estimateWithGemini(text, userWeightLbs) {
-    const cacheKey = `unified:${text.toLowerCase().trim()}:${userWeightLbs}`;
+async function estimateWithGemini(text, userWeightLbs, userHeightInches, userAge, userGender) {
+    // Include relevant user data in cache key for exercises (weight affects calories)
+    // For meals, weight doesn't affect calories, so we can use a simpler key
+    const cacheKey = `unified:${text.toLowerCase().trim()}:${userWeightLbs}${userHeightInches ? `:${userHeightInches}` : ''}${userAge ? `:${userAge}` : ''}${userGender ? `:${userGender}` : ''}`;
     if (estimationCache.has(cacheKey)) {
         return estimationCache.get(cacheKey);
     }
@@ -69,7 +100,10 @@ async function estimateWithGemini(text, userWeightLbs) {
     try {
         const result = await estimateCaloriesFunc({
             userText: text,
-            userWeightLbs: userWeightLbs
+            userWeightLbs: userWeightLbs,
+            userHeightInches: userHeightInches || null,
+            userAge: userAge || null,
+            userGender: userGender || null
         });
         
         if (!result.data || !result.data.success) {
