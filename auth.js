@@ -17,11 +17,19 @@ const USDA_API_KEY = "";
 const estimationCache = new Map();
 
 let allLogs = [];
+let userGoal = null;
+let userTDEE = 0; // Store TDEE in memory
 
 onAuthStateChanged(auth, (user) => {
     document.getElementById('auth-view').classList.toggle('hidden', !!user);
     document.getElementById('app-view').classList.toggle('hidden', !user);
-    if (user) { loadData(user.uid); loadProfile(user.uid); }
+    if (user) { 
+        // Load profile and goals first, then data, so TDEE and goal are available
+        loadProfile(user.uid).then(async () => {
+            await loadGoals(user.uid);
+            loadData(user.uid);
+        });
+    }
 });
 
 // --- AI LOGIC (Unified Estimation with Expert Prompt) ---
@@ -186,7 +194,8 @@ function renderHome() {
     list.innerHTML = "";
     
     let t = { in: 0, out: 0, p: 0, f: 0, s: 0, ft: 0 };
-    const tdee = parseInt(document.getElementById('p-tdee-display').innerText) || 0;
+    // Use stored TDEE from memory, fallback to DOM element if available
+    const tdee = userTDEE || (document.getElementById('p-tdee-display') ? parseInt(document.getElementById('p-tdee-display').innerText) || 0 : 0);
 
     allLogs.filter(l => l.date.toLocaleDateString() === today).forEach(item => {
         list.appendChild(createLogEl(item));
@@ -195,41 +204,343 @@ function renderHome() {
         } else { t.out += (item.cals || 0); }
     });
 
-    const netDeficit = t.in - t.out - tdee;
-    const fatBurned = netDeficit / 3500; // 1 lb fat = 3500 calories
-
     document.getElementById('d-in').innerText = Math.round(t.in);
     document.getElementById('d-out').innerText = Math.round(t.out);
-    document.getElementById('d-net').innerText = Math.round(netDeficit);
-    document.getElementById('d-fat-burned').innerText = fatBurned.toFixed(2);
+    
+    // Update fat burned/gained display based on calorie deficit/surplus
+    if (tdee > 0) {
+        const caloriePool = tdee + t.out; // TDEE + exercise = total calorie pool
+        const caloriesEaten = t.in;
+        const deficitSurplus = caloriesEaten - caloriePool; // Negative = deficit, Positive = surplus
+        const fatChange = deficitSurplus / 3500; // 1 lb fat = 3500 calories
+        
+        const fatLabel = document.getElementById('d-fat-label');
+        const fatValue = document.getElementById('d-fat-value');
+        const fatCard = document.getElementById('fat-card');
+        
+        if (fatLabel && fatValue && fatCard) {
+            if (deficitSurplus < 0) {
+                // Deficit - show fat burned
+                fatLabel.innerText = 'Fat Burned';
+                fatValue.innerText = Math.abs(fatChange).toFixed(2);
+                fatValue.style.color = 'var(--text-dark)';
+                fatCard.style.background = '#f8f9fa';
+                fatCard.style.borderColor = '#edf2f7';
+            } else if (deficitSurplus > 0) {
+                // Surplus - show fat gained
+                fatLabel.innerText = 'Fat Gained';
+                fatValue.innerText = fatChange.toFixed(2);
+                fatValue.style.color = '#d63031';
+                fatCard.style.background = '#ffeaea';
+                fatCard.style.borderColor = '#d63031';
+            } else {
+                // At maintenance
+                fatLabel.innerText = 'Fat Burned';
+                fatValue.innerText = '0.00';
+                fatValue.style.color = 'var(--text-dark)';
+                fatCard.style.background = '#f8f9fa';
+                fatCard.style.borderColor = '#edf2f7';
+            }
+        }
+    } else {
+        // TDEE not set
+        const fatLabel = document.getElementById('d-fat-label');
+        const fatValue = document.getElementById('d-fat-value');
+        if (fatLabel && fatValue) {
+            fatLabel.innerText = 'Fat Burned';
+            fatValue.innerText = '0.00';
+        }
+    }
+    
+    // Update calorie consumption progress wheel
+    // Only show if TDEE is set (greater than 0)
+    if (tdee > 0) {
+        const caloriePool = tdee + t.out; // TDEE + exercise = total calorie pool
+        const caloriesEaten = t.in;
+        const deficitSurplus = caloriesEaten - caloriePool; // Negative = deficit, Positive = surplus
+        const isSurplus = deficitSurplus > 0;
+
+        // Calculate progress: what percentage of the pool has been consumed
+        const progress = caloriePool > 0 ? Math.min(1, caloriesEaten / caloriePool) : 0;
+        const circumference = 2 * Math.PI * 60; // radius 60 (reduced by 30%)
+        const offset = circumference * (1 - progress);
+
+        // Update circle - red border for surplus, green for deficit
+        const calorieProgressCircle = document.getElementById('calorie-progress-circle');
+        if (calorieProgressCircle) {
+            calorieProgressCircle.style.strokeDashoffset = offset;
+            calorieProgressCircle.style.stroke = isSurplus ? '#d63031' : '#00b894'; // Red for surplus, green for deficit
+        }
+
+        // Update center display
+        const deficitNumber = document.getElementById('calorie-deficit-number');
+        const deficitLabel = document.getElementById('calorie-deficit-label');
+        if (deficitNumber && deficitLabel) {
+            // Show plus symbol for surplus
+            const displayValue = isSurplus ? `+${Math.round(deficitSurplus)}` : Math.round(deficitSurplus);
+            deficitNumber.innerText = displayValue;
+            deficitLabel.innerText = isSurplus ? 'calorie surplus' : 'calorie deficit';
+            // Color: red for surplus, default for deficit
+            deficitNumber.style.color = isSurplus ? '#d63031' : 'var(--text-dark)';
+        }
+        
+        // Update deficit goal label and calories remaining if goal is set
+        const goal = userGoal?.dailyDeficitGoal || 0;
+        const goalLabel = document.getElementById('calorie-goal-label');
+        const goalValue = document.getElementById('calorie-goal-value');
+        const remainingLabel = document.getElementById('calorie-remaining-label');
+        const remainingValue = document.getElementById('calorie-remaining-value');
+        
+        if (goal > 0 && caloriePool > 0) {
+            // Show goal label
+            if (goalLabel && goalValue) {
+                goalValue.innerText = `-${goal}`;
+                goalLabel.style.display = 'block';
+            }
+            
+            // Calculate calories remaining to reach goal
+            // Goal means eating (caloriePool - goal) calories
+            // Remaining = (caloriePool - goal) - caloriesEaten
+            const goalCalories = caloriePool - goal;
+            const caloriesRemaining = goalCalories - caloriesEaten;
+            
+            // Update remaining calories display
+            if (remainingLabel && remainingValue) {
+                if (caloriesRemaining > 0) {
+                    remainingValue.innerText = Math.round(caloriesRemaining);
+                    remainingLabel.style.display = 'block';
+                    remainingValue.style.color = 'var(--text-dark)';
+                } else if (caloriesRemaining <= 0 && !isSurplus) {
+                    // At or past goal but not in surplus
+                    remainingValue.innerText = '0';
+                    remainingLabel.style.display = 'block';
+                    remainingValue.style.color = '#00b894';
+                } else {
+                    // In surplus - exceeded goal
+                    remainingLabel.style.display = 'none';
+                }
+            }
+        } else {
+            // Hide goal elements if no goal set
+            if (goalLabel) goalLabel.style.display = 'none';
+            if (remainingLabel) remainingLabel.style.display = 'none';
+        }
+    } else {
+        // TDEE not set - hide or show placeholder
+        const calorieProgressCircle = document.getElementById('calorie-progress-circle');
+        const deficitNumber = document.getElementById('calorie-deficit-number');
+        const deficitLabel = document.getElementById('calorie-deficit-label');
+        if (calorieProgressCircle) {
+            calorieProgressCircle.style.strokeDashoffset = 534.07; // Empty circle
+        }
+        if (deficitNumber && deficitLabel) {
+            deficitNumber.innerText = '0';
+            deficitLabel.innerText = 'Set TDEE in Profile';
+        }
+    }
+    
     // Round macros to nearest tenth of a gram
     document.getElementById('h-pro').innerText = (Math.round(t.p * 10) / 10).toFixed(1);
     document.getElementById('h-fib').innerText = (Math.round(t.f * 10) / 10).toFixed(1);
     document.getElementById('h-sug').innerText = (Math.round(t.s * 10) / 10).toFixed(1);
     document.getElementById('h-fat').innerText = (Math.round(t.ft * 10) / 10).toFixed(1);
     
-    // Reset delete button
-    updateDeleteButton();
-}
-
-function renderMaster() {
-    const list = document.getElementById('master-list');
-    list.innerHTML = "";
-    let lastDate = "";
-    allLogs.forEach(item => {
-        const dateStr = item.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-        if (dateStr !== lastDate) {
-            const h = document.createElement('div'); 
-            h.style = "font-weight:700; color:#b2bec3; font-size:0.8rem; margin:15px 0 5px; text-transform:uppercase;";
-            h.innerText = dateStr;
-            list.appendChild(h); lastDate = dateStr;
+    // Update circular progress indicator for deficit goal
+    const goal = userGoal?.dailyDeficitGoal || 0;
+    const progressContainer = document.getElementById('deficit-progress-container');
+    const progressCircle = document.getElementById('deficit-progress-circle');
+    const yellowCircle = document.getElementById('deficit-yellow-circle');
+    const overCircle = document.getElementById('deficit-over-circle');
+    const progressNumber = document.getElementById('deficit-progress-number');
+    const progressLabel = document.getElementById('deficit-progress-label');
+    const goalDisplay = document.getElementById('deficit-goal-display');
+    const caloriesRemaining = document.getElementById('calories-remaining');
+    const goalLine = document.getElementById('deficit-goal-line');
+    const warningEl = document.getElementById('deficit-warning');
+    
+    if (goal > 0) {
+        // Calculate calories remaining (TDEE + exercise - eaten)
+        const caloriesAvailable = tdee + t.out - t.in;
+        caloriesRemaining.innerText = Math.max(0, Math.round(caloriesAvailable));
+        goalDisplay.innerText = goal;
+        
+        // Calculate maximum possible deficit (if they eat 0 calories)
+        // netDeficit = eaten - burned - TDEE
+        // If eaten = 0: netDeficit = 0 - burned - TDEE = -(burned + TDEE)
+        const maxDeficit = tdee + t.out; // e.g., 2000 (this is the maximum deficit as a positive number)
+        
+        // Circle mapping:
+        // 12 o'clock (0° in rotated SVG) = 0 deficit (netDeficit = 0) - one full revolution
+        // The circle represents total calorie deficit from 0 (12 o'clock) to maxDeficit (back to 12 o'clock)
+        // Goal line position is proportional to the goal relative to maxDeficit
+        // Example: goal=500, maxDeficit=2000 → goal is at 3/4 of the way = 270° (9 o'clock)
+        // Example: goal=1000, maxDeficit=2000 → goal is at 1/2 of the way = 180° (6 o'clock)
+        
+        const circumference = 2 * Math.PI * 75; // radius 75
+        
+        // Calculate goal line position
+        // Position from 12 o'clock: (1 - goal / maxDeficit) * 360°
+        // This gives us the angle where the goal line should be placed
+        const goalAngleDegrees = (1 - goal / maxDeficit) * 360;
+        const goalRadians = (goalAngleDegrees - 90) * Math.PI / 180; // -90 because SVG is rotated -90deg
+        const goalX = 90 + 75 * Math.cos(goalRadians);
+        const goalY = 90 + 75 * Math.sin(goalRadians);
+        const goalX2 = 90 + 85 * Math.cos(goalRadians);
+        const goalY2 = 90 + 85 * Math.sin(goalRadians);
+        
+        // Show goal line
+        goalLine.setAttribute('x1', goalX);
+        goalLine.setAttribute('y1', goalY);
+        goalLine.setAttribute('x2', goalX2);
+        goalLine.setAttribute('y2', goalY2);
+        goalLine.style.opacity = '1';
+        
+        // Reset all circles
+        yellowCircle.style.opacity = '0';
+        overCircle.style.opacity = '0';
+        
+        // Map netDeficit to circle position
+        // netDeficit = 0 → 12 o'clock (0° = 360°)
+        // netDeficit = maxDeficit → back to 12 o'clock (full circle)
+        // Formula: (1 - netDeficit / maxDeficit) * 360° gives angle from 12 o'clock
+        // Note: netDeficit can be negative when you've eaten more than TDEE + exercise (surplus)
+        // But at start of day (0 eaten, 0 exercise), netDeficit = -tdee, which is not a surplus
+        // actualSurplus is already calculated above
+        
+        // Calculate current position on circle
+        // If we're in actual surplus, show full red circle
+        // Otherwise, calculate position based on netDeficit (clamp to 0 if negative but not surplus)
+        let displayDeficit = netDeficit;
+        if (netDeficit < 0 && !actualSurplus) {
+            // Negative but not surplus (e.g., start of day) - show as 0 deficit
+            displayDeficit = 0;
         }
-        list.appendChild(createLogEl(item));
-    });
+        
+        const currentAngle = (1 - displayDeficit / maxDeficit) * 360;
+        const currentProgress = Math.max(0, Math.min(1, currentAngle / 360)); // Clamp between 0 and 1
+        const currentOffset = circumference * (1 - currentProgress);
+        
+        if (actualSurplus) {
+            // Surplus (eaten more than TDEE + exercise) - fill entire circle red
+            progressCircle.style.strokeDashoffset = 0; // Full circle
+            progressCircle.style.stroke = '#d63031';
+            yellowCircle.style.opacity = '0';
+            overCircle.style.opacity = '0';
+            progressNumber.style.color = '#d63031';
+            progressLabel.innerText = 'cal surplus';
+            warningEl.style.display = 'none'; // Hide warning, label already says surplus
+        } else if (displayDeficit >= goal) {
+            // At or above goal deficit - fill green up to current position
+            progressCircle.style.strokeDashoffset = currentOffset;
+            progressCircle.style.stroke = '#00b894';
+            yellowCircle.style.opacity = '0';
+            overCircle.style.opacity = '0';
+            progressNumber.style.color = 'var(--text-dark)';
+            progressLabel.innerText = 'cal deficit';
+            warningEl.style.display = 'none';
+        } else {
+            // Between 0 and goal: 
+            // - Green from 12 o'clock (0 deficit) up to goal line
+            // - Yellow from goal line to current position (between goal and 0)
+            const goalProgress = (1 - goal / maxDeficit); // Progress at goal line (0 to 1)
+            const goalOffset = circumference * (1 - goalProgress);
+            
+            // Green circle: fill from 12 o'clock to goal line
+            progressCircle.style.strokeDashoffset = goalOffset;
+            progressCircle.style.stroke = '#00b894';
+            
+            // Yellow circle: fill from goal line to current position
+            // Yellow portion is the distance from goal line to current position
+            // Since circles start at 12 o'clock, we need to:
+            // 1. Calculate yellow length: from goal to current
+            // 2. Position it so it starts at goal line and ends at current
+            const yellowLength = goalProgress - currentProgress; // Portion of circle to fill with yellow
+            const yellowDashLength = circumference * yellowLength; // Actual dash length
+            const yellowGapLength = circumference - yellowDashLength; // Gap to hide the rest
+            
+            if (yellowLength > 0 && maxDeficit > 0) {
+                // Use stroke-dasharray to show only the yellow portion
+                // Offset it so it starts at the goal line position
+                yellowCircle.setAttribute('stroke-dasharray', `${yellowDashLength} ${yellowGapLength}`);
+                // Offset to position yellow starting at goal line
+                // Goal line is at offset = goalOffset from 12 o'clock
+                // But we want yellow to start there, so we offset by the gap before it
+                const yellowOffset = circumference * (1 - goalProgress); // Start at goal line
+                yellowCircle.style.strokeDashoffset = yellowOffset;
+                yellowCircle.style.opacity = '1';
+            } else {
+                yellowCircle.style.opacity = '0';
+            }
+            
+            overCircle.style.opacity = '0';
+            progressNumber.style.color = '#d63031';
+            progressLabel.innerText = 'cal deficit';
+            warningEl.style.display = 'block';
+            warningEl.innerText = 'Below deficit goal';
+        }
+        
+        // Display the actual netDeficit value (not the clamped displayDeficit)
+        // Show absolute value when in surplus
+        if (actualSurplus) {
+            progressNumber.innerText = Math.abs(Math.round(netDeficit));
+        } else {
+            progressNumber.innerText = Math.round(netDeficit);
+        }
+        progressContainer.style.display = 'block';
+    } else {
+        progressContainer.style.display = 'none';
+    }
     
     // Reset delete button
     updateDeleteButton();
 }
+
+window.renderMaster = function() {
+    console.log("renderMaster() called, allLogs length:", allLogs ? allLogs.length : 0);
+    
+    const list = document.getElementById('master-list');
+    if (!list) {
+        console.error("master-list element not found");
+        return;
+    }
+    
+    list.innerHTML = "";
+    
+    if (!allLogs || allLogs.length === 0) {
+        console.log("No logs to display in master list");
+        return;
+    }
+    
+    let lastDate = "";
+    allLogs.forEach(item => {
+        try {
+            if (!item.date) {
+                console.warn("Log item missing date:", item);
+                return;
+            }
+            
+            // Ensure date is a Date object
+            const date = item.date instanceof Date ? item.date : new Date(item.date);
+            const dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            
+            if (dateStr !== lastDate) {
+                const h = document.createElement('div'); 
+                h.style = "font-weight:700; color:#b2bec3; font-size:0.8rem; margin:15px 0 5px; text-transform:uppercase;";
+                h.innerText = dateStr;
+                list.appendChild(h); 
+                lastDate = dateStr;
+            }
+            list.appendChild(createLogEl(item));
+        } catch (error) {
+            console.error("Error rendering log item:", error, item);
+        }
+    });
+    
+    console.log("renderMaster() completed, rendered", list.children.length, "elements");
+    
+    // Reset delete button
+    updateDeleteButton();
+};
 
 function createLogEl(item) {
     const div = document.createElement('div');
@@ -275,6 +586,11 @@ window.deleteSelected = async () => {
     if (confirm(`Delete ${count} selected item${count > 1 ? 's' : ''}?`)) {
         // Delete all selected items
         await Promise.all(selectedIds.map(id => deleteDoc(doc(db, "logs", id))));
+        // Uncheck all checkboxes before reloading
+        document.querySelectorAll('.entry-checkbox').forEach(cb => cb.checked = false);
+        // Update delete button immediately
+        updateDeleteButton();
+        // Then reload data
         loadData(auth.currentUser.uid);
     }
 };
@@ -347,7 +663,7 @@ function runAdvancedStats(days) {
     const lbs = (deficit / 3500).toFixed(2);
 
     document.getElementById('stats-output').innerHTML = `
-        <div style="background: #e3fcef; padding: 20px; border-radius: 16px; text-align: center; margin-bottom: 20px;">
+        <div style="background: #e3fcef; padding: 20px; border-radius: 6px; text-align: center; margin-bottom: 20px;">
             <small style="color:#00b894; font-weight:700;">EST. FAT LOSS (${uniqueDays} ACTIVE DAYS)</small><br>
             <b style="font-size: 1.8rem; color: #2d3436;">${lbs} lbs</b>
         </div>
@@ -410,15 +726,35 @@ document.getElementById('ai-btn').onclick = async () => {
 document.getElementById('ai-input').onkeypress = (e) => { if (e.key === 'Enter') document.getElementById('ai-btn').click(); };
 
 async function loadProfile(uid) {
-    const snap = await getDoc(doc(db, "users", uid));
-    if (snap.exists()) {
-        const d = snap.data();
-        document.getElementById('p-weight').value = d.weight || "";
-        document.getElementById('p-height').value = d.height || "";
-        document.getElementById('p-age').value = d.age || "";
-        document.getElementById('p-gender').value = d.gender || "male";
-        document.getElementById('p-activity').value = d.activityLevel || "1.2";
-        document.getElementById('p-tdee-display').innerText = d.tdee || 0;
+    try {
+        const snap = await getDoc(doc(db, "users", uid));
+        if (snap.exists()) {
+            const d = snap.data();
+            // Store TDEE in memory
+            userTDEE = d.tdee || 0;
+            // Load profile data into form fields
+            if (document.getElementById('p-weight')) {
+                document.getElementById('p-weight').value = d.weight || "";
+            }
+            if (document.getElementById('p-height')) {
+                document.getElementById('p-height').value = d.height || "";
+            }
+            if (document.getElementById('p-age')) {
+                document.getElementById('p-age').value = d.age || "";
+            }
+            if (document.getElementById('p-gender')) {
+                document.getElementById('p-gender').value = d.gender || "male";
+            }
+            if (document.getElementById('p-activity')) {
+                document.getElementById('p-activity').value = d.activityLevel || "1.2";
+            }
+            // Always update TDEE display if it exists in the document
+            if (document.getElementById('p-tdee-display')) {
+                document.getElementById('p-tdee-display').innerText = userTDEE;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading profile:', error);
     }
 }
 document.getElementById('save-profile').onclick = async () => {
@@ -446,9 +782,167 @@ document.getElementById('save-profile').onclick = async () => {
         bmr: Math.round(bmr),
         tdee: tdee 
     }, { merge: true });
+    // Update stored TDEE in memory
+    userTDEE = tdee;
     document.getElementById('p-tdee-display').innerText = tdee;
     alert("Profile Updated!"); loadData(auth.currentUser.uid);
+    // Update goals tab if weight changed
+    if (document.getElementById('g-current-weight')) {
+        document.getElementById('g-current-weight').value = w || "";
+        updateDaysEstimate();
+    }
 };
+
+// --- GOALS ---
+window.updateGoalsTab = function() {
+    const currentWeightEl = document.getElementById('g-current-weight');
+    if (currentWeightEl) {
+        const currentWeight = parseFloat(document.getElementById('p-weight').value) || 0;
+        currentWeightEl.value = currentWeight || "";
+        updateDaysEstimate();
+    }
+};
+
+async function loadGoals(uid) {
+    const snap = await getDoc(doc(db, "users", uid));
+    if (snap.exists()) {
+        const d = snap.data();
+        userGoal = {
+            targetWeight: d.targetWeight || null,
+            dailyDeficitGoal: d.dailyDeficitGoal || null
+        };
+        
+        // Update goals tab if it exists
+        if (document.getElementById('g-current-weight')) {
+            const currentWeight = parseFloat(document.getElementById('p-weight').value) || 0;
+            document.getElementById('g-current-weight').value = currentWeight || "";
+            
+            if (userGoal.targetWeight) {
+                document.getElementById('g-target-weight').value = userGoal.targetWeight;
+            }
+            
+            if (userGoal.dailyDeficitGoal) {
+                document.getElementById('g-deficit-slider').value = userGoal.dailyDeficitGoal;
+                document.getElementById('g-deficit-value').innerText = userGoal.dailyDeficitGoal;
+            }
+            
+            updateDaysEstimate();
+        }
+    }
+}
+
+function calculateDaysToTarget(currentWeight, targetWeight, dailyDeficit) {
+    if (!currentWeight || !targetWeight || !dailyDeficit || dailyDeficit <= 0) {
+        return null;
+    }
+    
+    if (targetWeight >= currentWeight) {
+        return null; // Invalid target (not losing weight)
+    }
+    
+    const weightDiff = currentWeight - targetWeight;
+    const totalCaloriesNeeded = weightDiff * 3500; // 1 lb = 3500 calories
+    const days = totalCaloriesNeeded / dailyDeficit;
+    
+    return Math.ceil(days);
+}
+
+function updateDaysEstimate() {
+    // Only calculate if we have all required values
+    const currentWeightEl = document.getElementById('g-current-weight');
+    const targetWeightEl = document.getElementById('g-target-weight');
+    const deficitSliderEl = document.getElementById('g-deficit-slider');
+    
+    if (!currentWeightEl || !targetWeightEl || !deficitSliderEl) {
+        return; // Elements don't exist yet
+    }
+    
+    const currentWeight = parseFloat(currentWeightEl.value) || 0;
+    const targetWeight = parseFloat(targetWeightEl.value) || 0;
+    const deficit = parseInt(deficitSliderEl.value) || 0;
+    
+    // Ensure we're using the goal deficit from slider, not actual deficit
+    if (!currentWeight || !targetWeight || !deficit || deficit <= 0) {
+        document.getElementById('g-estimated-days').style.display = 'none';
+        return;
+    }
+    
+    const days = calculateDaysToTarget(currentWeight, targetWeight, deficit);
+    const daysBox = document.getElementById('g-estimated-days');
+    
+    if (days !== null && days > 0) {
+        document.getElementById('g-days-display').innerText = days;
+        const deficitDisplay = document.getElementById('g-days-deficit-display');
+        if (deficitDisplay) {
+            deficitDisplay.innerText = deficit;
+        }
+        daysBox.style.display = 'block';
+    } else {
+        daysBox.style.display = 'none';
+    }
+}
+
+
+// Slider event handler (set up when DOM is ready)
+const sliderEl = document.getElementById('g-deficit-slider');
+if (sliderEl) {
+    sliderEl.addEventListener('input', (e) => {
+        const deficit = parseInt(e.target.value);
+        document.getElementById('g-deficit-value').innerText = deficit;
+        updateDaysEstimate();
+    });
+}
+
+// Target weight input handler (set up when DOM is ready)
+const targetWeightEl = document.getElementById('g-target-weight');
+if (targetWeightEl) {
+    targetWeightEl.addEventListener('input', () => {
+        updateDaysEstimate();
+    });
+}
+
+// Save goal button handler (set up when DOM is ready)
+const saveGoalEl = document.getElementById('save-goal');
+if (saveGoalEl) {
+    saveGoalEl.onclick = async () => {
+        const targetWeight = parseFloat(document.getElementById('g-target-weight').value);
+        const dailyDeficit = parseInt(document.getElementById('g-deficit-slider').value);
+        const currentWeight = parseFloat(document.getElementById('g-current-weight').value);
+        
+        if (!currentWeight) {
+            alert("Please set your current weight in the Profile tab first.");
+            return;
+        }
+        
+        if (!targetWeight || targetWeight <= 0) {
+            alert("Please enter a valid target weight.");
+            return;
+        }
+        
+        if (targetWeight >= currentWeight) {
+            alert("Target weight must be less than current weight.");
+            return;
+        }
+        
+        if (!dailyDeficit || dailyDeficit <= 0) {
+            alert("Please set a daily calorie deficit.");
+            return;
+        }
+        
+        userGoal = {
+            targetWeight: targetWeight,
+            dailyDeficitGoal: dailyDeficit
+        };
+        
+        await setDoc(doc(db, "users", auth.currentUser.uid), {
+            targetWeight: targetWeight,
+            dailyDeficitGoal: dailyDeficit
+        }, { merge: true });
+        
+        alert("Goal saved! Your daily calorie deficit target is set to " + dailyDeficit + " calories below your TDEE.");
+        loadData(auth.currentUser.uid); // Refresh home screen to show progress
+    };
+}
 
 // --- AUTH ---
 // Check if user is coming from email link (run after DOM is ready)

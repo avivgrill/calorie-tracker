@@ -63,15 +63,63 @@
             <button class="nav-btn active" onclick="showTab('home', this)">Home</button>
             <button class="nav-btn" onclick="showTab('master', this)">Log</button>
             <button class="nav-btn" onclick="showTab('stats', this)">Stats</button>
+            <button class="nav-btn" onclick="showTab('goals', this)">Goals</button>
             <button class="nav-btn" onclick="showTab('profile', this)">Profile</button>
         </nav>
 
         <section id="tab-home" class="tab-content">
-            <div class="stat-grid-2x2">
+            <div class="stat-grid">
                 <div class="stat-card eaten"><h3>Eaten</h3><p id="d-in">0</p></div>
                 <div class="stat-card burned"><h3>Burned</h3><p id="d-out">0</p></div>
-                <div class="stat-card highlight"><h3>Net Deficit</h3><p id="d-net">0</p><div class="deficit-formula">Eaten - Burned - TDEE</div></div>
-                <div class="stat-card"><h3>Fat Burned</h3><p id="d-fat-burned">0.00</p><small style="font-size: 0.7rem; color: var(--text-light);">lbs</small></div>
+                <div class="stat-card" id="fat-card"><h3 id="d-fat-label">Fat Burned</h3><p id="d-fat-value">0.00</p><small style="font-size: 0.7rem; color: var(--text-light);">lbs</small></div>
+                <div id="calorie-progress-wheel" style="text-align: center;">
+                    <div style="position: relative; width: 140px; height: 140px; margin: 0 auto;">
+                        <svg width="140" height="140" style="transform: rotate(-90deg);">
+                            <!-- Background circle -->
+                            <circle cx="70" cy="70" r="60" fill="none" stroke="#dfe6e9" stroke-width="8"/>
+                            <!-- Progress circle (green) -->
+                            <circle id="calorie-progress-circle" cx="70" cy="70" r="60" fill="none" 
+                                    stroke="#00b894" stroke-width="8" 
+                                    stroke-dasharray="377" stroke-dashoffset="377" 
+                                    stroke-linecap="round"/>
+                        </svg>
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+                            <div id="calorie-deficit-number" style="font-size: 1.4rem; font-weight: 800; color: var(--text-dark);">0</div>
+                            <div id="calorie-deficit-label" style="font-size: 0.56rem; color: var(--text-light); margin-bottom: 2px;">calorie deficit</div>
+                            <div id="calorie-goal-label" style="font-size: 0.575rem; color: #007bff; font-weight: 700; display: none; margin-top: 4px;">Goal: <span id="calorie-goal-value">-750</span> cal</div>
+                            <div id="calorie-remaining-label" style="font-size: 0.575rem; color: var(--text-light); font-weight: 700; display: none; margin-top: 2px;"><span id="calorie-remaining-value">0</span> cal to goal</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="deficit-progress-container" style="display: none; margin-bottom: 20px;">
+                <div style="text-align: center; margin-bottom: 10px;">
+                    <div style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 4px;">Daily Deficit Goal: <span id="deficit-goal-display" style="font-weight: 700; color: var(--primary);">0</span> cal</div>
+                    <div style="font-size: 0.9rem; color: var(--text-dark); font-weight: 600;">You can eat <span id="calories-remaining" style="color: var(--primary); font-weight: 800;">0</span> calories today</div>
+                </div>
+                <div style="position: relative; width: 180px; height: 180px; margin: 0 auto;">
+                    <svg width="180" height="180" style="transform: rotate(-90deg);">
+                        <!-- Background circle -->
+                        <circle cx="90" cy="90" r="75" fill="none" stroke="#dfe6e9" stroke-width="14"/>
+                        <!-- Goal line marker -->
+                        <line id="deficit-goal-line" x1="90" y1="15" x2="90" y2="15" stroke="#007bff" stroke-width="3" opacity="0"/>
+                        <!-- Progress circle (green) -->
+                        <circle id="deficit-progress-circle" cx="90" cy="90" r="75" fill="none" stroke="#00b894" stroke-width="14" 
+                                stroke-dasharray="471.24" stroke-dashoffset="471.24" stroke-linecap="round"/>
+                        <!-- Yellow zone (between goal and 0) -->
+                        <circle id="deficit-yellow-circle" cx="90" cy="90" r="75" fill="none" stroke="#fdcb6e" stroke-width="14" 
+                                stroke-dasharray="471.24" stroke-dashoffset="471.24" stroke-linecap="round" opacity="0"/>
+                        <!-- Over-target circle (red) -->
+                        <circle id="deficit-over-circle" cx="90" cy="90" r="75" fill="none" stroke="#d63031" stroke-width="14" 
+                                stroke-dasharray="471.24" stroke-dashoffset="471.24" stroke-linecap="round" opacity="0"/>
+                    </svg>
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+                        <div id="deficit-progress-number" style="font-size: 1.8rem; font-weight: 800; color: var(--text-dark);">0</div>
+                        <div id="deficit-progress-label" style="font-size: 0.75rem; color: var(--text-light);">cal deficit</div>
+                        <div id="deficit-warning" style="font-size: 0.7rem; color: #d63031; font-weight: 600; margin-top: 4px; display: none;">Over daily limit!</div>
+                    </div>
+                </div>
             </div>
 
             <details open style="margin-bottom: 20px; color: #636e72;">
@@ -90,16 +138,16 @@
             </div>
             <p id="status-msg" style="text-align: center; color: #636e72; font-size: 0.9rem; min-height: 20px;"></p>
 
-            <button id="delete-selected-btn-home" onclick="deleteSelected()" style="display: none; width: 100%; padding: 12px; background: #d63031; color: white; border: none; border-radius: 12px; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin-bottom: 15px;">Delete Selected</button>
+            <button id="delete-selected-btn-home" onclick="deleteSelected()" style="display: none; width: 100%; padding: 12px; background: #d63031; color: white; border: none; border-radius: 5px; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin-bottom: 15px;">Delete Selected</button>
             <div id="log-list"></div>
         </section>
 
         <section id="tab-master" class="tab-content hidden">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                 <h3 style="margin: 0;">History Log</h3>
-                <button onclick="downloadData()" style="padding: 8px 16px; background: #00b894; color: white; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">Download CSV</button>
+                <button onclick="downloadData()" style="padding: 8px 16px; background: #00b894; color: white; border: none; border-radius: 3px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">Download CSV</button>
             </div>
-            <button id="delete-selected-btn-master" onclick="deleteSelected()" style="display: none; width: 100%; padding: 12px; background: #d63031; color: white; border: none; border-radius: 12px; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin-bottom: 15px;">Delete Selected</button>
+            <button id="delete-selected-btn-master" onclick="deleteSelected()" style="display: none; width: 100%; padding: 12px; background: #d63031; color: white; border: none; border-radius: 5px; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin-bottom: 15px;">Delete Selected</button>
             <div id="master-list"></div>
         </section>
 
@@ -112,6 +160,43 @@
             <div id="stats-output" class="advanced-box">
                 <p style="text-align: center; color: #b2bec3;">Select a timeframe to calculate averages.</p>
             </div>
+        </section>
+
+        <section id="tab-goals" class="tab-content hidden">
+            <h3 style="margin-top: 0;">Weight Goal</h3>
+            
+            <div class="profile-group">
+                <label>Current Weight</label>
+                <input type="number" id="g-current-weight" readonly style="background: #f8f9fa;">
+            </div>
+            
+            <div class="profile-group">
+                <label>Target Weight (lbs)</label>
+                <input type="number" id="g-target-weight" placeholder="e.g. 150">
+            </div>
+            
+            <div class="profile-group">
+                <label>Daily Calorie Deficit Goal</label>
+                <p style="font-size: 0.8rem; color: var(--text-light); margin: 4px 0 10px 0; line-height: 1.4;">
+                    How many calories below your TDEE you want to aim for each day. Higher deficit = faster weight loss.
+                </p>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <input type="range" id="g-deficit-slider" min="0" max="3000" step="50" value="500" style="flex: 1;">
+                    <span id="g-deficit-value" style="font-weight: 700; min-width: 80px; text-align: right; color: var(--primary);">500</span>
+                    <span style="color: var(--text-light); font-size: 0.9rem;">cal deficit/day</span>
+                </div>
+            </div>
+            
+            <div class="bmr-box" id="g-estimated-days" style="display: none;">
+                <span style="display: block; font-size: 0.8rem; text-transform: uppercase; color: #636e72;">Estimated Days to Target</span>
+                <span id="g-days-display" style="font-size: 2rem; font-weight: 800; color: var(--primary);">--</span>
+                <span style="font-size: 0.9rem; color: #636e72;">days</span>
+                <p style="font-size: 0.75rem; color: var(--text-light); margin-top: 8px; line-height: 1.3;">
+                    Based on maintaining a <span id="g-days-deficit-display">500</span> cal/day deficit
+                </p>
+            </div>
+            
+            <button id="save-goal" class="primary-btn">Set as Daily Deficit Goal</button>
         </section>
 
         <section id="tab-profile" class="tab-content hidden">
@@ -158,7 +243,7 @@
             </div>
 
             <button id="save-profile" class="primary-btn">Save & Update</button>
-            <button id="logout-btn" style="width: 100%; margin-top: 20px; background: transparent; color: #d63031; border: 1px solid #d63031; padding: 12px; border-radius: 12px; cursor: pointer;">Log Out</button>
+            <button id="logout-btn" style="width: 100%; margin-top: 20px; background: transparent; color: #d63031; border: 1px solid #d63031; padding: 12px; border-radius: 5px; cursor: pointer;">Log Out</button>
         </section>
     </div>
 
@@ -169,6 +254,16 @@
             document.getElementById('tab-' + tabName).classList.remove('hidden');
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
             el.classList.add('active');
+            
+            // Update goals tab when shown
+            if (tabName === 'goals' && typeof updateGoalsTab === 'function') {
+                updateGoalsTab();
+            }
+            
+            // Refresh log tab when shown
+            if (tabName === 'master' && typeof renderMaster === 'function') {
+                renderMaster();
+            }
         }
     </script>
 </body>
