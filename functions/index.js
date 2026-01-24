@@ -1,46 +1,53 @@
 const functions = require('firebase-functions');
+const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { defineSecret } = require('firebase-functions/params');
 const fetch = require('node-fetch');
+
+// Define the Gemini API key as a secret
+const geminiApiKey = defineSecret('GEMINI_API_KEY');
 
 /**
  * Cloud Function to estimate calories using Gemini API.
  * This keeps the API key secure on the backend.
  */
-exports.estimateCalories = functions.https.onCall(async (data, context) => {
-  // Require authentication
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
-      'unauthenticated',
-      'User must be authenticated to use this function'
-    );
-  }
+exports.estimateCalories = onCall(
+  { secrets: [geminiApiKey] },
+  async (request) => {
+    // Require authentication
+    if (!request.auth) {
+      throw new HttpsError(
+        'unauthenticated',
+        'User must be authenticated to use this function'
+      );
+    }
 
-  const { userText, userWeightLbs } = data;
+    const { userText, userWeightLbs } = request.data;
 
-  // Validate input
-  if (!userText || typeof userText !== 'string') {
-    throw new functions.https.HttpsError(
-      'invalid-argument',
-      'userText is required and must be a string'
-    );
-  }
+    // Validate input
+    if (!userText || typeof userText !== 'string') {
+      throw new HttpsError(
+        'invalid-argument',
+        'userText is required and must be a string'
+      );
+    }
 
-  if (!userWeightLbs || typeof userWeightLbs !== 'number') {
-    throw new functions.https.HttpsError(
-      'invalid-argument',
-      'userWeightLbs is required and must be a number'
-    );
-  }
+    if (!userWeightLbs || typeof userWeightLbs !== 'number') {
+      throw new HttpsError(
+        'invalid-argument',
+        'userWeightLbs is required and must be a number'
+      );
+    }
 
-  // Get API key from environment config
-  const GEMINI_KEY = functions.config().gemini?.key;
-  
-  if (!GEMINI_KEY) {
-    console.error('Gemini API key not configured');
-    throw new functions.https.HttpsError(
-      'failed-precondition',
-      'API key not configured'
-    );
-  }
+    // Get API key from secret
+    const GEMINI_KEY = geminiApiKey.value();
+    
+    if (!GEMINI_KEY) {
+      console.error('Gemini API key not configured');
+      throw new HttpsError(
+        'failed-precondition',
+        'API key not configured'
+      );
+    }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
 
@@ -63,21 +70,21 @@ exports.estimateCalories = functions.https.onCall(async (data, context) => {
     
     if (result.error) {
       console.error('Gemini API error:', result.error);
-      throw new functions.https.HttpsError('internal', result.error.message);
+      throw new HttpsError('internal', result.error.message);
     }
 
     // Extract the raw text response
     const rawText = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
     
     if (!rawText) {
-      throw new functions.https.HttpsError('internal', 'Empty response from Gemini API');
+      throw new HttpsError('internal', 'Empty response from Gemini API');
     }
 
     // Return the raw text - let client handle parsing
     return { success: true, rawText };
   } catch (error) {
     console.error('Error calling Gemini API:', error);
-    throw new functions.https.HttpsError(
+    throw new HttpsError(
       'internal',
       error.message || 'Failed to process request'
     );
