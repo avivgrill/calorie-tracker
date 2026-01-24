@@ -339,13 +339,18 @@ function renderHome() {
         } else { t.out += (item.cals || 0); }
     });
 
+    const netDeficit = t.in - t.out - tdee;
+    const fatBurned = netDeficit / 3500; // 1 lb fat = 3500 calories
+
     document.getElementById('d-in').innerText = Math.round(t.in);
     document.getElementById('d-out').innerText = Math.round(t.out);
-    document.getElementById('d-net').innerText = Math.round(t.in - t.out - tdee);
+    document.getElementById('d-net').innerText = Math.round(netDeficit);
+    document.getElementById('d-fat-burned').innerText = fatBurned.toFixed(2);
     document.getElementById('h-pro').innerText = t.p.toFixed(0);
     document.getElementById('h-fib').innerText = t.f.toFixed(0);
     document.getElementById('h-sug').innerText = t.s.toFixed(0);
     document.getElementById('h-fat').innerText = t.ft.toFixed(0);
+    document.getElementById('h-fat-burned').innerText = fatBurned.toFixed(2);
     
     // Reset delete button
     updateDeleteButton();
