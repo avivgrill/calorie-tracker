@@ -11,19 +11,17 @@
     <div id="auth-view" class="container">
         <h1 style="text-align: center;">Health AI</h1>
         <div class="input-group">
-            <input type="email" id="email" placeholder="Enter Email">
+            <input type="email" id="email" placeholder="Enter Your Email">
         </div>
-        <div class="input-group">
-            <input type="password" id="password" placeholder="Enter Password">
-        </div>
-        <button id="login-btn" class="primary-btn">Login / Sign Up</button>
+        <button id="login-btn" class="primary-btn">Send Login Link</button>
         <p id="login-error" style="color: #d63031; text-align: center; margin-top: 10px;"></p>
+        <p id="login-success" style="color: #00b894; text-align: center; margin-top: 10px; display: none;"></p>
     </div>
 
     <div id="app-view" class="container hidden">
         <nav class="segmented-control">
             <button class="nav-btn active" onclick="showTab('home', this)">Home</button>
-            <button class="nav-btn" onclick="showTab('master', this)">Master</button>
+            <button class="nav-btn" onclick="showTab('master', this)">Log</button>
             <button class="nav-btn" onclick="showTab('stats', this)">Stats</button>
             <button class="nav-btn" onclick="showTab('profile', this)">Profile</button>
         </nav>
@@ -51,11 +49,16 @@
                 </div>
             </details>
 
+            <button id="delete-selected-btn-home" onclick="deleteSelected()" style="display: none; width: 100%; padding: 12px; background: #d63031; color: white; border: none; border-radius: 12px; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin-bottom: 15px;">Delete Selected</button>
             <div id="log-list"></div>
         </section>
 
         <section id="tab-master" class="tab-content hidden">
-            <h3 style="margin-top: 0;">History Log</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h3 style="margin: 0;">History Log</h3>
+                <button onclick="downloadData()" style="padding: 8px 16px; background: #00b894; color: white; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">Download CSV</button>
+            </div>
+            <button id="delete-selected-btn-master" onclick="deleteSelected()" style="display: none; width: 100%; padding: 12px; background: #d63031; color: white; border: none; border-radius: 12px; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin-bottom: 15px;">Delete Selected</button>
             <div id="master-list"></div>
         </section>
 
@@ -96,9 +99,20 @@
                 <input type="number" id="p-weight" placeholder="e.g. 180">
             </div>
 
+            <div class="profile-group">
+                <label>Activity Level</label>
+                <select id="p-activity">
+                    <option value="1.2">Sedentary (little/no exercise)</option>
+                    <option value="1.375">Lightly Active (light exercise 1-3 days/week)</option>
+                    <option value="1.55">Moderately Active (moderate exercise 3-5 days/week)</option>
+                    <option value="1.725">Very Active (hard exercise 6-7 days/week)</option>
+                    <option value="1.9">Extremely Active (very hard exercise, physical job)</option>
+                </select>
+            </div>
+
             <div class="bmr-box">
-                <span style="display: block; font-size: 0.8rem; text-transform: uppercase; color: #636e72;">Daily Metabolic Burn (BMR)</span>
-                <span id="p-bmr-display" style="font-size: 2rem; font-weight: 800; color: var(--primary);">0</span>
+                <span style="display: block; font-size: 0.8rem; text-transform: uppercase; color: #636e72;">Total Daily Energy Expenditure (TDEE)</span>
+                <span id="p-tdee-display" style="font-size: 2rem; font-weight: 800; color: var(--primary);">0</span>
                 <span style="font-size: 0.9rem; color: #636e72;">kcal/day</span>
             </div>
 
