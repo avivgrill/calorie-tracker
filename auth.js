@@ -123,20 +123,25 @@ function validateAndNormalizeResult(parsed, originalText) {
 
     const type = parsed.type === "exercise" ? "exercise" : "meal";
     
-    // Extract and validate calorie value
+    // Extract and validate calorie value - trust Gemini's output
     let cals = parseFloat(parsed.cals);
     if (isNaN(cals) || cals < 0) {
         throw new Error("Invalid calorie value in AI response");
     }
     
-    // Apply sanity checks
-    cals = applySanityChecks(cals, type, originalText);
+    // Extract macros - trust Gemini's output
+    let pro = Math.max(0, parseFloat(parsed.pro) || 0);
+    let fib = Math.max(0, parseFloat(parsed.fib) || 0);
+    let sug = Math.max(0, parseFloat(parsed.sug) || 0);
+    let fat = Math.max(0, parseFloat(parsed.fat) || 0);
     
-    // Extract macros with defaults
-    const pro = Math.max(0, parseFloat(parsed.pro) || 0);
-    const fib = Math.max(0, parseFloat(parsed.fib) || 0);
-    const sug = Math.max(0, parseFloat(parsed.sug) || 0);
-    const fat = Math.max(0, parseFloat(parsed.fat) || 0);
+    // For exercise, ensure macros are 0 (as per prompt requirement)
+    if (type === "exercise") {
+        pro = 0;
+        fib = 0;
+        sug = 0;
+        fat = 0;
+    }
     
     // Build clean name
     let name = String(parsed.name || "").trim();
@@ -165,47 +170,7 @@ function validateAndNormalizeResult(parsed, originalText) {
     };
 }
 
-/**
- * Apply sanity checks to calorie values
- */
-function applySanityChecks(cals, type, originalText) {
-    const lowerText = originalText.toLowerCase();
-    
-    if (type === "meal") {
-        // Check for small portions mentioned
-        const isSmallPortion = /\b(bite|sip|taste|nibble|tiny|small)\b/.test(lowerText);
-        const isLargeMeal = /\b(feast|buffet|all you can eat|huge|massive|large)\b/.test(lowerText);
-        
-        // Minimum sanity: even a bite should be at least 5 calories
-        if (cals < 5 && !isSmallPortion) {
-            console.warn("Calorie value suspiciously low, adjusting minimum");
-            cals = Math.max(cals, 50);
-        }
-        
-        // Maximum sanity: single meal rarely exceeds 3000 cal unless specified
-        if (cals > 3000 && !isLargeMeal) {
-            console.warn("Calorie value very high for single entry:", cals);
-            // Don't cap, but log warning - the AI might be right for multiple items
-        }
-        
-        // Very small portions check
-        if (isSmallPortion && cals > 500) {
-            console.warn("High calories for described small portion");
-        }
-    } else {
-        // Exercise: rarely burns more than 1500 cal in a single session
-        if (cals > 1500) {
-            console.warn("Very high exercise calorie burn:", cals);
-        }
-        
-        // Minimum: even light activity burns something
-        if (cals < 10) {
-            cals = Math.max(cals, 20);
-        }
-    }
-    
-    return cals;
-}
+// Removed applySanityChecks - we trust Gemini's output directly
 
 // --- DATA ENGINE ---
 async function loadData(uid) {
