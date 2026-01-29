@@ -265,6 +265,15 @@
             if (tabName === 'master' && typeof renderMaster === 'function') {
                 renderMaster();
             }
+
+            // Stats tab: default to 7 days so it's never unselected
+            if (tabName === 'stats') {
+                var btn7 = document.getElementById('btn-7');
+                var btn30 = document.getElementById('btn-30');
+                if (btn7) btn7.classList.add('active');
+                if (btn30) btn30.classList.remove('active');
+                if (typeof window.runAdvancedStats === 'function') window.runAdvancedStats(7);
+            }
         }
     </script>
 </body>

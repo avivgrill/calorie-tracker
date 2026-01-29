@@ -736,6 +736,8 @@ document.getElementById('btn-30').onclick = (e) => {
     e.target.classList.add('active'); runAdvancedStats(30); 
 };
 
+window.runAdvancedStats = runAdvancedStats;
+
 // --- INPUTS & PROFILE ---
 document.getElementById('ai-btn').onclick = async () => {
     const input = document.getElementById('ai-input');
