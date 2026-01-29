@@ -56,7 +56,18 @@ exports.estimateCalories = onCall(
 
   const requestBody = {
     contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.1 }
+    systemInstruction: {
+      parts: [{
+        text: "Act as a Nutritional Data Parser. When analyzing meals, first identify individual ingredients, " +
+              "then assign standard USDA-based portion sizes for any missing quantities. For vague inputs " +
+              "(e.g., 'a burrito'), use standard references (e.g., 10-inch flour tortilla, beans, rice, cheese, salsa). " +
+              "Return valid JSON only - no conversational text, no explanations."
+      }]
+    },
+    generationConfig: {
+      temperature: 0.1,
+      response_mime_type: "application/json"
+    }
   };
 
   try {
@@ -115,5 +126,10 @@ Analyze this and respond with ONLY this JSON format (no markdown, no backticks):
 
 For exercises, estimate calories burned accurately based on exercise type, duration, intensity, and user characteristics. Use your training data on exercise physiology and calorie burn rates. Set pro/fib/sug/fat to 0.
 
-For meals, estimate calories and macros based on your training data. Be accurate and use standard nutrition databases when possible.`;
+For meals, follow this logic:
+1. Identify all individual ingredients in the meal description.
+2. For each ingredient, if quantity is missing, assign a standard USDA-based portion size.
+3. Pay careful attention to quantities and multipliers. If the user says "2 coffee" or "3 eggs", multiply the calories and macros by that number (e.g., "2 coffee with a splash of milk" should be approximately double the calories of "1 coffee with a splash of milk").
+4. For vague inputs without specific quantities, use typical reference serving sizes from standard nutrition databases (e.g., one sandwich, one cup of coffee, one standard burrito).
+5. Use standard nutrition databases (USDA, nutrition labels) to estimate calories and macros. Be accurate and realistic—do not overestimate. Use typical serving sizes and common preparation methods.`;
 }

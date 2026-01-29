@@ -16,6 +16,12 @@ const USDA_API_KEY = "";
 
 const estimationCache = new Map();
 
+// Helper to clear the in-memory estimation cache (useful while tuning prompts)
+window.clearEstimationCache = function clearEstimationCache() {
+    estimationCache.clear();
+    console.log("Estimation cache cleared");
+};
+
 let allLogs = [];
 let userGoal = null;
 let userTDEE = 0; // Store TDEE in memory
