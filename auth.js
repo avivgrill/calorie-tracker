@@ -181,6 +181,7 @@ function validateAndNormalizeResult(parsed, originalText) {
     let pro = Math.max(0, parseFloat(parsed.pro) || 0);
     let fib = Math.max(0, parseFloat(parsed.fib) || 0);
     let sug = Math.max(0, parseFloat(parsed.sug) || 0);
+    let carb = Math.max(0, parseFloat(parsed.carb) || 0);
     let fat = Math.max(0, parseFloat(parsed.fat) || 0);
     
     // For exercise, ensure macros are 0 (as per prompt requirement)
@@ -188,6 +189,7 @@ function validateAndNormalizeResult(parsed, originalText) {
         pro = 0;
         fib = 0;
         sug = 0;
+        carb = 0;
         fat = 0;
     }
     
@@ -212,6 +214,7 @@ function validateAndNormalizeResult(parsed, originalText) {
         pro: Math.round(pro * 10) / 10,
         fib: Math.round(fib * 10) / 10,
         sug: Math.round(sug * 10) / 10,
+        carb: Math.round(carb * 10) / 10,
         fat: Math.round(fat * 10) / 10,
         confidence,
         source: "gemini"
@@ -233,14 +236,14 @@ function renderHome() {
     const list = document.getElementById('log-list');
     list.innerHTML = "";
     
-    let t = { in: 0, out: 0, p: 0, f: 0, s: 0, ft: 0 };
+    let t = { in: 0, out: 0, p: 0, f: 0, s: 0, cb: 0, ft: 0 };
     // Use stored TDEE from memory, fallback to DOM element if available
     const tdee = userTDEE || (document.getElementById('p-tdee-display') ? parseInt(document.getElementById('p-tdee-display').innerText) || 0 : 0);
 
     allLogs.filter(l => l.date.toLocaleDateString() === today).forEach(item => {
         list.appendChild(createLogEl(item));
         if (item.type === 'meal') {
-            t.in += (item.cals || 0); t.p += (item.pro||0); t.f += (item.fib||0); t.s += (item.sug||0); t.ft += (item.fat||0);
+            t.in += (item.cals || 0); t.p += (item.pro||0); t.f += (item.fib||0); t.s += (item.sug||0); t.cb += (item.carb||0); t.ft += (item.fat||0);
         } else { t.out += (item.cals || 0); }
     });
 
@@ -383,6 +386,8 @@ function renderHome() {
     document.getElementById('h-pro').innerText = (Math.round(t.p * 10) / 10).toFixed(1);
     document.getElementById('h-fib').innerText = (Math.round(t.f * 10) / 10).toFixed(1);
     document.getElementById('h-sug').innerText = (Math.round(t.s * 10) / 10).toFixed(1);
+    const hCarb = document.getElementById('h-carb');
+    if (hCarb) hCarb.innerText = (Math.round(t.cb * 10) / 10).toFixed(1);
     document.getElementById('h-fat').innerText = (Math.round(t.ft * 10) / 10).toFixed(1);
     
     // Update circular progress indicator for deficit goal
@@ -642,7 +647,7 @@ window.downloadData = () => {
     }
     
     // Create CSV headers
-    const headers = ['Date', 'Time', 'Type', 'Name', 'Calories', 'Protein (g)', 'Fiber (g)', 'Sugar (g)', 'Fat (g)'];
+    const headers = ['Date', 'Time', 'Type', 'Name', 'Calories', 'Protein (g)', 'Fiber (g)', 'Sugar (g)', 'Carbs (g)', 'Fat (g)'];
     
     // Convert logs to CSV rows
     const rows = allLogs.map(log => {
@@ -657,6 +662,7 @@ window.downloadData = () => {
             log.pro || 0,
             log.fib || 0,
             log.sug || 0,
+            log.carb || 0,
             log.fat || 0
         ];
     });
@@ -691,16 +697,17 @@ function runAdvancedStats(days) {
     // Count unique active days
     const uniqueDays = new Set(filtered.map(l => l.date.toDateString())).size || 1; 
 
-    let t = { cIn: 0, cOut: 0, p: 0, f: 0, s: 0, ft: 0 };
+    let t = { cIn: 0, cOut: 0, p: 0, f: 0, s: 0, cb: 0, ft: 0 };
     filtered.forEach(l => {
         if(l.type === 'meal') {
-            t.cIn += (l.cals||0); t.p += (l.pro||0); t.f += (l.fib||0); t.s += (l.sug||0); t.ft += (l.fat||0);
+            t.cIn += (l.cals||0); t.p += (l.pro||0); t.f += (l.fib||0); t.s += (l.sug||0); t.cb += (l.carb||0); t.ft += (l.fat||0);
         } else { t.cOut += (l.cals||0); }
     });
 
     // Fat Loss = (Total Burn + (TDEE * Active Days) - Total Eaten) / 3500
     const deficit = (t.cOut + (tdee * uniqueDays)) - t.cIn;
     const lbs = (deficit / 3500).toFixed(2);
+    const avgDeficit = uniqueDays > 0 ? Math.round(deficit / uniqueDays) : 0;
 
     document.getElementById('stats-output').innerHTML = `
         <div style="background: #e3fcef; padding: 20px; border-radius: 6px; text-align: center; margin-bottom: 20px;">
@@ -709,9 +716,11 @@ function runAdvancedStats(days) {
         </div>
         <div class="advanced-grid">
             <div class="adv-card"><small>AVG CALORIES</small><b>${Math.round(t.cIn/uniqueDays)}</b></div>
+            <div class="adv-card"><small>AVG DEFICIT</small><b>${avgDeficit}</b></div>
             <div class="adv-card"><small>AVG PROTEIN</small><b>${(t.p/uniqueDays).toFixed(0)}g</b></div>
             <div class="adv-card"><small>AVG FIBER</small><b>${(t.f/uniqueDays).toFixed(0)}g</b></div>
             <div class="adv-card"><small>AVG SUGAR</small><b>${(t.s/uniqueDays).toFixed(0)}g</b></div>
+            <div class="adv-card"><small>AVG CARBS</small><b>${(t.cb/uniqueDays).toFixed(0)}g</b></div>
             <div class="adv-card"><small>AVG FAT</small><b>${(t.ft/uniqueDays).toFixed(0)}g</b></div>
             <div class="adv-card"><small>TOTAL BURN</small><b>${Math.round(t.cOut)}</b></div>
         </div>

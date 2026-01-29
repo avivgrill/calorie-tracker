@@ -94,8 +94,8 @@ input[type="email"]::placeholder, input[type="password"]::placeholder {
 
 /* Advanced Stats */
 .advanced-box { padding: 20px; background: #f1f2f6; border-radius: 7px; margin-top: 15px; }
-.advanced-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 15px; }
-.macros-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.advanced-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 15px; }
+.macros-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
 .adv-card { background: white; padding: 10px 12px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
 .adv-card small { display: block; font-size: 0.7rem; color: #b2bec3; font-weight: 700; margin-bottom: 4px; }
 .adv-card b { font-size: 1.1rem; color: var(--text-dark); }
