@@ -556,34 +556,66 @@ window.renderMaster = function() {
         return;
     }
     
-    let lastDate = "";
-    allLogs.forEach(item => {
-        try {
-            if (!item.date) {
-                console.warn("Log item missing date:", item);
-                return;
-            }
-            
-            // Ensure date is a Date object
-            const date = item.date instanceof Date ? item.date : new Date(item.date);
-            const dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-            
-            if (dateStr !== lastDate) {
-                const h = document.createElement('div'); 
-                h.style = "font-weight:700; color:#b2bec3; font-size:0.8rem; margin:15px 0 5px; text-transform:uppercase;";
-                h.innerText = dateStr;
-                list.appendChild(h); 
-                lastDate = dateStr;
-            }
-            list.appendChild(createLogEl(item));
-        } catch (error) {
-            console.error("Error rendering log item:", error, item);
+    const tdeeEl = document.getElementById('p-tdee-display');
+    const tdee = tdeeEl ? (parseInt(tdeeEl.innerText, 10) || 0) : 0;
+    
+    // Group by date key (toDateString) preserving order (allLogs is newest first)
+    const byDate = new Map();
+    const dateOrder = [];
+    for (const item of allLogs) {
+        if (!item.date) continue;
+        const date = item.date instanceof Date ? item.date : new Date(item.date);
+        const key = date.toDateString();
+        if (!byDate.has(key)) {
+            byDate.set(key, []);
+            dateOrder.push(key);
         }
-    });
+        byDate.get(key).push(item);
+    }
+    
+    for (const dateKey of dateOrder) {
+        const items = byDate.get(dateKey);
+        const date = items[0].date instanceof Date ? items[0].date : new Date(items[0].date);
+        const dateStr = date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        
+        let day = { cIn: 0, cOut: 0, p: 0, f: 0, s: 0, cb: 0, ft: 0 };
+        for (const item of items) {
+            if (item.type === 'meal') {
+                day.cIn += (item.cals || 0);
+                day.p += (item.pro || 0); day.f += (item.fib || 0); day.s += (item.sug || 0);
+                day.cb += (item.carb || 0); day.ft += (item.fat || 0);
+            } else {
+                day.cOut += (item.cals || 0);
+            }
+        }
+        const deficit = (day.cOut + tdee) - day.cIn;
+        
+        const h = document.createElement('div');
+        h.style = "font-weight:700; color:#b2bec3; font-size:0.8rem; margin:15px 0 5px; text-transform:uppercase;";
+        h.innerText = dateStr;
+        list.appendChild(h);
+        
+        const summaryEl = document.createElement('div');
+        summaryEl.className = 'day-summary';
+        summaryEl.innerHTML = `
+            <div class="day-summary-grid">
+                <div class="day-summary-cell"><span class="day-summary-label">Calories</span><span class="day-summary-val">${Math.round(day.cIn)}</span></div>
+                <div class="day-summary-cell"><span class="day-summary-label">Deficit</span><span class="day-summary-val">${deficit >= 0 ? '-' : '+'}${Math.round(Math.abs(deficit))}</span></div>
+                <div class="day-summary-cell"><span class="day-summary-label">Protein</span><span class="day-summary-val">${Math.round(day.p)}g</span></div>
+                <div class="day-summary-cell"><span class="day-summary-label">Carbs</span><span class="day-summary-val">${Math.round(day.cb)}g</span></div>
+                <div class="day-summary-cell"><span class="day-summary-label">Fat</span><span class="day-summary-val">${Math.round(day.ft)}g</span></div>
+                <div class="day-summary-cell"><span class="day-summary-label">Fiber</span><span class="day-summary-val">${Math.round(day.f)}g</span></div>
+                <div class="day-summary-cell"><span class="day-summary-label">Sugar</span><span class="day-summary-val">${Math.round(day.s)}g</span></div>
+            </div>
+        `;
+        list.appendChild(summaryEl);
+        
+        for (const item of items) {
+            list.appendChild(createLogEl(item));
+        }
+    }
     
     console.log("renderMaster() completed, rendered", list.children.length, "elements");
-    
-    // Reset delete button
     updateDeleteButton();
 };
 
@@ -591,15 +623,52 @@ function createLogEl(item) {
     const div = document.createElement('div');
     div.className = `entry ${item.type}`;
     const sign = item.type === 'exercise' ? '-' : '+';
+    const macroBtn = item.type === 'meal'
+        ? `<button type="button" class="entry-macro-btn" title="Calories & macros">i</button>`
+        : '';
     div.innerHTML = `
         <div class="entry-info">
             <span class="entry-name">${item.name}</span>
             <span class="entry-cals ${item.type === 'exercise' ? 'exercise-val' : ''}">${sign}${Math.round(item.cals)} kcal</span>
         </div>
-        <input type="checkbox" class="entry-checkbox" data-id="${item.id}" onchange="updateDeleteButton()">
+        <div class="entry-actions">
+            ${macroBtn}
+            <input type="checkbox" class="entry-checkbox" data-id="${item.id}" onchange="updateDeleteButton()">
+        </div>
     `;
+    if (item.type === 'meal') {
+        const btn = div.querySelector('.entry-macro-btn');
+        if (btn) btn.addEventListener('click', (e) => { e.stopPropagation(); showEntryMacroPopup(item); });
+    }
     return div;
 }
+
+window.showEntryMacroPopup = function(item) {
+    const overlay = document.getElementById('entry-macro-popup-overlay');
+    const titleEl = document.getElementById('entry-macro-popup-title');
+    const bodyEl = document.getElementById('entry-macro-popup-body');
+    const closeBtn = document.getElementById('entry-macro-popup-close');
+    if (!overlay || !titleEl || !bodyEl) return;
+    titleEl.textContent = item.name || 'Food';
+    const cals = Math.round(item.cals || 0);
+    const pro = Math.round(item.pro || 0);
+    const carb = Math.round(item.carb || 0);
+    const fat = Math.round(item.fat || 0);
+    const fib = Math.round(item.fib || 0);
+    const sug = Math.round(item.sug || 0);
+    bodyEl.innerHTML = `
+        <div class="macro-row"><span>Calories</span><strong>${cals} kcal</strong></div>
+        <div class="macro-row"><span>Protein</span><strong>${pro}g</strong></div>
+        <div class="macro-row"><span>Carbs</span><strong>${carb}g</strong></div>
+        <div class="macro-row"><span>Fat</span><strong>${fat}g</strong></div>
+        <div class="macro-row"><span>Fiber</span><strong>${fib}g</strong></div>
+        <div class="macro-row"><span>Sugar</span><strong>${sug}g</strong></div>
+    `;
+    overlay.classList.remove('hidden');
+    const close = () => overlay.classList.add('hidden');
+    closeBtn.onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+};
 
 window.updateDeleteButton = () => {
     const checkboxes = document.querySelectorAll('.entry-checkbox:checked');

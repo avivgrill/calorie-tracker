@@ -86,11 +86,31 @@ input[type="email"]::placeholder, input[type="password"]::placeholder {
 .entry { display: flex; justify-content: space-between; align-items: center; padding: 16px; margin-bottom: 12px; border-radius: 6px; border-left: 5px solid #ccc; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.03); }
 .entry.meal { background: var(--meal-bg); border-color: var(--meal-border); }
 .entry.exercise { background: var(--ex-bg); border-color: var(--ex-border); }
-.entry-info { display: flex; flex-direction: column; flex: 1; }
+.entry-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .entry-name { font-weight: 600; font-size: 1rem; margin-bottom: 2px; }
 .entry-cals { font-size: 0.85rem; color: var(--text-light); }
 .exercise-val { color: #d63031; font-weight: 700; }
+.entry-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .entry-checkbox { width: 20px; height: 20px; cursor: pointer; accent-color: var(--primary); }
+.entry-macro-btn { width: 28px; height: 28px; min-width: 28px; border: none; border-radius: 50%; background: rgba(0,0,0,0.08); color: var(--text-light); font-size: 0.75rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-right: 8px; flex-shrink: 0; }
+.entry-macro-btn:hover { background: var(--primary); color: white; }
+
+/* Entry macro popup */
+.entry-macro-popup-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+.entry-macro-popup-overlay.hidden { display: none; }
+.entry-macro-popup { background: var(--card-bg); border-radius: 10px; padding: 20px; max-width: 320px; width: 100%; box-shadow: 0 12px 40px rgba(0,0,0,0.15); }
+.entry-macro-popup-title { font-weight: 700; font-size: 1rem; color: var(--text-dark); margin-bottom: 14px; padding-right: 24px; }
+.entry-macro-popup-body { font-size: 0.9rem; color: var(--text-light); margin-bottom: 16px; }
+.entry-macro-popup-body .macro-row { display: flex; justify-content: space-between; padding: 4px 0; }
+.entry-macro-popup-body .macro-row strong { color: var(--text-dark); }
+.entry-macro-popup-close { width: 100%; padding: 10px; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.9rem; }
+
+/* Day summary (Log section) – under date label, compact */
+.day-summary { margin: 4px 0 12px 0; padding: 8px 10px; background: #f1f2f6; border-radius: 6px; border: 1px solid #e8e8e8; }
+.day-summary-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.day-summary-cell { text-align: center; }
+.day-summary-label { display: block; font-size: 0.58rem; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.2px; margin-bottom: 1px; line-height: 1.2; }
+.day-summary-val { font-size: 0.8rem; font-weight: 700; color: var(--text-dark); }
 
 /* Advanced Stats */
 .advanced-box { padding: 20px; background: #f1f2f6; border-radius: 7px; margin-top: 15px; }

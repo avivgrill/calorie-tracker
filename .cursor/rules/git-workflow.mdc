@@ -1,0 +1,21 @@
+---
+description: Git workflow preferences - always ask before keeping changes or pushing
+alwaysApply: true
+---
+
+# Git Workflow Preferences
+
+## Code Changes
+- After making any code changes, ALWAYS ask the user if they want to keep the changes
+- Do NOT assume changes should be kept automatically
+
+## Git Operations
+- NEVER automatically push to git
+- After user confirms they want to keep changes, ask separately if they want to push to git
+- Only push if explicitly confirmed by the user
+
+## Workflow Steps
+1. Make the requested changes
+2. Ask: "Would you like to keep these changes?"
+3. If yes, then ask: "Would you like me to push these changes to git?"
+4. Only proceed with git operations after explicit confirmation
