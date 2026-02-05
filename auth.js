@@ -26,6 +26,34 @@ let allLogs = [];
 let userGoal = null;
 let userTDEE = 0; // Store TDEE in memory
 
+function getCurrentTdee() {
+    const tdeeEl = document.getElementById('p-tdee-display');
+    return userTDEE || (tdeeEl ? (parseInt(tdeeEl.innerText, 10) || 0) : 0);
+}
+
+function getTdeeFromLogsForDay(dayLogs, fallbackTdee) {
+    for (const log of dayLogs) {
+        const snap = parseInt(log.tdeeSnapshot, 10);
+        if (!isNaN(snap) && snap > 0) return snap;
+    }
+    return fallbackTdee || 0;
+}
+
+async function backfillMissingTdeeSnapshots(uid, snapshotTdee) {
+    if (!uid) return;
+    const tdee = parseInt(snapshotTdee, 10);
+    if (isNaN(tdee) || tdee <= 0) return;
+    const q = query(collection(db, "logs"), where("uid", "==", uid));
+    const snap = await getDocs(q);
+    const updates = [];
+    snap.forEach(docSnap => {
+        const data = docSnap.data();
+        if (!data || data.tdeeSnapshot) return;
+        updates.push(setDoc(doc(db, "logs", docSnap.id), { tdeeSnapshot: tdee }, { merge: true }));
+    });
+    if (updates.length) await Promise.all(updates);
+}
+
 onAuthStateChanged(auth, (user) => {
     document.getElementById('auth-view').classList.toggle('hidden', !!user);
     document.getElementById('app-view').classList.toggle('hidden', !user);
@@ -237,10 +265,10 @@ function renderHome() {
     list.innerHTML = "";
     
     let t = { in: 0, out: 0, p: 0, f: 0, s: 0, cb: 0, ft: 0 };
-    // Use stored TDEE from memory, fallback to DOM element if available
-    const tdee = userTDEE || (document.getElementById('p-tdee-display') ? parseInt(document.getElementById('p-tdee-display').innerText) || 0 : 0);
+    const dayLogs = allLogs.filter(l => l.date.toLocaleDateString() === today);
+    const tdee = getTdeeFromLogsForDay(dayLogs, getCurrentTdee());
 
-    allLogs.filter(l => l.date.toLocaleDateString() === today).forEach(item => {
+    dayLogs.forEach(item => {
         list.appendChild(createLogEl(item));
         if (item.type === 'meal') {
             t.in += (item.cals || 0); t.p += (item.pro||0); t.f += (item.fib||0); t.s += (item.sug||0); t.cb += (item.carb||0); t.ft += (item.fat||0);
@@ -556,8 +584,7 @@ window.renderMaster = function() {
         return;
     }
     
-    const tdeeEl = document.getElementById('p-tdee-display');
-    const tdee = tdeeEl ? (parseInt(tdeeEl.innerText, 10) || 0) : 0;
+    const fallbackTdee = getCurrentTdee();
     
     // Group by date key (toDateString) preserving order (allLogs is newest first)
     const byDate = new Map();
@@ -588,7 +615,8 @@ window.renderMaster = function() {
                 day.cOut += (item.cals || 0);
             }
         }
-        const deficit = (day.cOut + tdee) - day.cIn;
+        const dayTdee = getTdeeFromLogsForDay(items, fallbackTdee);
+        const deficit = (day.cOut + dayTdee) - day.cIn;
         
         const h = document.createElement('div');
         h.style = "font-weight:700; color:#b2bec3; font-size:0.8rem; margin:15px 0 5px; text-transform:uppercase;";
@@ -761,20 +789,31 @@ window.downloadData = () => {
 function runAdvancedStats(days) {
     const cutoff = new Date(); cutoff.setDate(new Date().getDate() - days);
     const filtered = allLogs.filter(l => l.date >= cutoff);
-    const tdee = parseInt(document.getElementById('p-tdee-display').innerText) || 0;
+    const fallbackTdee = getCurrentTdee();
+
+    const byDay = new Map();
+    for (const log of filtered) {
+        const key = log.date.toDateString();
+        if (!byDay.has(key)) byDay.set(key, []);
+        byDay.get(key).push(log);
+    }
 
     // Count unique active days
-    const uniqueDays = new Set(filtered.map(l => l.date.toDateString())).size || 1; 
+    const uniqueDays = byDay.size || 1;
 
     let t = { cIn: 0, cOut: 0, p: 0, f: 0, s: 0, cb: 0, ft: 0 };
-    filtered.forEach(l => {
-        if(l.type === 'meal') {
-            t.cIn += (l.cals||0); t.p += (l.pro||0); t.f += (l.fib||0); t.s += (l.sug||0); t.cb += (l.carb||0); t.ft += (l.fat||0);
-        } else { t.cOut += (l.cals||0); }
-    });
+    let totalTdee = 0;
+    for (const dayLogs of byDay.values()) {
+        totalTdee += getTdeeFromLogsForDay(dayLogs, fallbackTdee);
+        dayLogs.forEach(l => {
+            if (l.type === 'meal') {
+                t.cIn += (l.cals||0); t.p += (l.pro||0); t.f += (l.fib||0); t.s += (l.sug||0); t.cb += (l.carb||0); t.ft += (l.fat||0);
+            } else { t.cOut += (l.cals||0); }
+        });
+    }
 
-    // Fat Loss = (Total Burn + (TDEE * Active Days) - Total Eaten) / 3500
-    const deficit = (t.cOut + (tdee * uniqueDays)) - t.cIn;
+    // Fat Loss = (Total Burn + (Total TDEE) - Total Eaten) / 3500
+    const deficit = (t.cOut + totalTdee) - t.cIn;
     const lbs = (deficit / 3500).toFixed(2);
     const avgDeficit = uniqueDays > 0 ? Math.round(deficit / uniqueDays) : 0;
 
@@ -830,6 +869,7 @@ document.getElementById('ai-btn').onclick = async () => {
         await addDoc(collection(db, "logs"), {
             uid: auth.currentUser.uid,
             timestamp: new Date(),
+            tdeeSnapshot: getCurrentTdee(),
             ...result
         });
 
@@ -884,6 +924,9 @@ document.getElementById('save-profile').onclick = async () => {
     const g = document.getElementById('p-gender').value;
     const activityMultiplier = parseFloat(document.getElementById('p-activity').value);
     if(!w || !h || !a) return alert("Fill all fields");
+    
+    // Freeze historical logs that are missing a snapshot before changing TDEE
+    await backfillMissingTdeeSnapshots(auth.currentUser?.uid, getCurrentTdee());
     
     // Mifflin-St Jeor Equation for BMR
     const kg = w * 0.453592; const cm = h * 2.54;
