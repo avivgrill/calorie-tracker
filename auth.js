@@ -847,43 +847,80 @@ document.getElementById('btn-30').onclick = (e) => {
 window.runAdvancedStats = runAdvancedStats;
 
 // --- INPUTS & PROFILE ---
-document.getElementById('ai-btn').onclick = async () => {
-    const input = document.getElementById('ai-input');
-    const status = document.getElementById('status-msg');
-    if(!input.value.trim()) return;
-    
-    const originalValue = input.value;
-    status.innerText = "Consulting AI Nutritionist...";
-    
+/**
+ * Add one log entry from AI-parsed text, with a given timestamp (for today or a past date).
+ * @param {string} originalValue - User input (e.g. "2 eggs and toast")
+ * @param {Date} timestamp - Date/time to store for the entry
+ * @param {HTMLElement} statusEl - Element to show status messages
+ * @param {HTMLInputElement|null} inputEl - Optional; cleared on success
+ */
+async function addEntryFromAi(originalValue, timestamp, statusEl, inputEl) {
+    if (!originalValue || !originalValue.trim()) return;
+    statusEl.innerText = "Consulting AI Nutritionist...";
     try {
         const result = await callGemini(originalValue);
-
-        // Validate result before saving
         if (!result || typeof result !== "object") {
             throw new Error("Invalid response from AI");
         }
         if (typeof result.cals !== "number" || isNaN(result.cals)) {
             throw new Error("Invalid calorie value received");
         }
-
         await addDoc(collection(db, "logs"), {
             uid: auth.currentUser.uid,
-            timestamp: new Date(),
+            timestamp: timestamp,
             tdeeSnapshot: getCurrentTdee(),
             ...result
         });
-
-        input.value = "";
+        if (inputEl) inputEl.value = "";
         const sourceLabel = result.source ? ` (${result.source})` : "";
-        status.innerText = `✓ Entry added successfully${sourceLabel}!`;
-        setTimeout(() => { status.innerText = ""; }, 2000);
+        statusEl.innerText = `✓ Entry added successfully${sourceLabel}!`;
+        setTimeout(() => { statusEl.innerText = ""; }, 2000);
         loadData(auth.currentUser.uid);
     } catch (err) {
         console.error("Error adding entry:", err);
-        status.innerText = "Error: " + (err.message || "Failed to process entry. Please try again.");
+        statusEl.innerText = "Error: " + (err.message || "Failed to process entry. Please try again.");
     }
+}
+
+document.getElementById('ai-btn').onclick = async () => {
+    const input = document.getElementById('ai-input');
+    const status = document.getElementById('status-msg');
+    await addEntryFromAi(input.value, new Date(), status, input);
 };
 document.getElementById('ai-input').onkeypress = (e) => { if (e.key === 'Enter') document.getElementById('ai-btn').click(); };
+
+// Log tab: add entry for a selected past date (collapsible)
+const pastEntrySection = document.getElementById('past-entry-section');
+const pastEntryToggle = document.getElementById('past-entry-toggle');
+const pastEntryBody = document.getElementById('past-entry-body');
+const pastEntryDateEl = document.getElementById('past-entry-date');
+const pastAiInputEl = document.getElementById('past-ai-input');
+const pastStatusEl = document.getElementById('past-status-msg');
+
+if (pastEntryToggle && pastEntryBody) {
+    pastEntryToggle.addEventListener('click', () => {
+        const isExpanded = pastEntryBody.hidden;
+        pastEntryBody.hidden = !isExpanded;
+        pastEntryToggle.setAttribute('aria-expanded', isExpanded ? 'false' : 'true');
+        pastEntrySection.classList.toggle('past-entry-section--expanded', isExpanded);
+    });
+}
+
+if (pastEntryDateEl) {
+    const today = new Date();
+    pastEntryDateEl.value = today.toISOString().slice(0, 10);
+}
+document.getElementById('past-ai-btn').onclick = async () => {
+    const dateStr = pastEntryDateEl ? pastEntryDateEl.value : "";
+    if (!dateStr) {
+        pastStatusEl.innerText = "Please select a date.";
+        return;
+    }
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const timestamp = new Date(y, m - 1, d, 12, 0, 0);
+    await addEntryFromAi(pastAiInputEl.value, timestamp, pastStatusEl, pastAiInputEl);
+};
+pastAiInputEl.onkeypress = (e) => { if (e.key === "Enter") document.getElementById("past-ai-btn").click(); };
 
 async function loadProfile(uid) {
     try {

@@ -47,6 +47,25 @@ input[type="email"]::placeholder, input[type="password"]::placeholder {
 #ai-input { width: 100%; padding: 16px; border: 2px solid #dfe6e9; border-radius: 6px; font-size: 1.1rem; outline: none; transition: border 0.2s; box-sizing: border-box; background: #fafafa; }
 #ai-input:focus { border-color: var(--primary); background: #fff; }
 #ai-btn, .primary-btn { width: 100%; padding: 16px; background: var(--primary); color: white; border: none; border-radius: 6px; font-size: 1rem; font-weight: 700; cursor: pointer; margin-top: 10px; }
+
+/* Log tab: add entry for past date (collapsible) */
+.past-entry-section { margin-bottom: 20px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e8e8e8; overflow: hidden; }
+.past-entry-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px 16px; background: none; border: none; font-size: 0.95rem; font-weight: 600; color: var(--text-dark); cursor: pointer; text-align: left; font-family: inherit; }
+.past-entry-toggle:hover { background: #eef1f3; }
+.past-entry-chevron { font-size: 0.7rem; color: var(--text-light); transition: transform 0.2s; }
+.past-entry-section--expanded .past-entry-chevron { transform: rotate(180deg); }
+.past-entry-body { padding: 0 16px 16px; border-top: 1px solid #e8e8e8; }
+.past-entry-body[hidden] { display: none; }
+.past-entry-body .past-entry-row { margin-top: 12px; margin-bottom: 12px; }
+.past-entry-row { margin-bottom: 12px; }
+.past-entry-date-label { display: block; font-size: 0.8rem; color: var(--text-light); margin-bottom: 4px; }
+.past-entry-date { width: 100%; padding: 12px; border: 2px solid #dfe6e9; border-radius: 6px; font-size: 1rem; box-sizing: border-box; background: #fff; }
+.past-entry-date:focus { border-color: var(--primary); outline: none; }
+.past-ai-input { width: 100%; padding: 14px; border: 2px solid #dfe6e9; border-radius: 6px; font-size: 1rem; outline: none; transition: border 0.2s; box-sizing: border-box; background: #fafafa; }
+.past-ai-input:focus { border-color: var(--primary); background: #fff; }
+.past-ai-btn { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 6px; font-size: 0.95rem; font-weight: 700; cursor: pointer; margin-top: 10px; }
+.past-ai-btn:active { transform: scale(0.98); }
+.past-status-msg { min-height: 20px; font-size: 0.9rem; color: var(--text-light); margin: 8px 0 0; text-align: center; }
 .primary-btn:active { transform: scale(0.98); }
 .secondary-btn { width: 100%; padding: 16px; background: #6c757d; color: white; border: none; border-radius: 6px; font-size: 1rem; font-weight: 700; cursor: pointer; }
 .secondary-btn:active { transform: scale(0.98); }

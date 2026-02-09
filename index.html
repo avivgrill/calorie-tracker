@@ -148,6 +148,23 @@
                 <h3 style="margin: 0;">History Log</h3>
                 <button onclick="downloadData()" style="padding: 8px 16px; background: #00b894; color: white; border: none; border-radius: 3px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">Download CSV</button>
             </div>
+            <div class="past-entry-section" id="past-entry-section">
+                <button type="button" class="past-entry-toggle" id="past-entry-toggle" aria-expanded="false">
+                    <span class="past-entry-toggle-text">Add entry for a past date</span>
+                    <span class="past-entry-chevron" aria-hidden="true">▼</span>
+                </button>
+                <div class="past-entry-body" id="past-entry-body" hidden>
+                    <div class="past-entry-row">
+                        <label for="past-entry-date" class="past-entry-date-label">Date</label>
+                        <input type="date" id="past-entry-date" class="past-entry-date">
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="past-ai-input" placeholder="Example: 2 eggs and toast, or Ran 3 miles..." class="past-ai-input">
+                        <button id="past-ai-btn" class="past-ai-btn">Analyze & Add</button>
+                    </div>
+                    <p id="past-status-msg" class="past-status-msg"></p>
+                </div>
+            </div>
             <button id="delete-selected-btn-master" onclick="deleteSelected()" style="display: none; width: 100%; padding: 12px; background: #d63031; color: white; border: none; border-radius: 5px; font-size: 0.9rem; font-weight: 600; cursor: pointer; margin-bottom: 15px;">Delete Selected</button>
             <div id="master-list"></div>
         </section>
