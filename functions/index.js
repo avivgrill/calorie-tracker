@@ -78,10 +78,69 @@ exports.estimateCalories = onCall(
     });
 
     const result = await response.json();
-    
-    if (result.error) {
-      console.error('Gemini API error:', result.error);
-      throw new HttpsError('internal', result.error.message);
+
+    if (!response.ok || result.error) {
+      const providerError = result?.error || {};
+      const providerStatus = providerError.status || `HTTP_${response.status}`;
+      const providerCode = providerError.code || response.status;
+      const providerMessage = providerError.message || 'Unknown Gemini error';
+
+      console.error('Gemini API error:', {
+        httpStatus: response.status,
+        providerStatus,
+        providerCode,
+        providerMessage
+      });
+
+      if (response.status === 429 || providerStatus === 'RESOURCE_EXHAUSTED') {
+        throw new HttpsError(
+          'resource-exhausted',
+          'AI service is temporarily rate-limited or out of quota for this project.',
+          {
+            reason: 'rate_limit_or_quota',
+            nextStep: 'Wait 1-2 minutes, then retry. If it persists, check Gemini/Vertex quotas and billing in Google Cloud.',
+            providerStatus,
+            providerCode
+          }
+        );
+      }
+
+      if (response.status === 401 || response.status === 403) {
+        throw new HttpsError(
+          'failed-precondition',
+          'AI request was rejected by Google due to project configuration, permissions, or billing.',
+          {
+            reason: 'auth_or_billing_or_permissions',
+            nextStep: 'Verify Gemini API access, project permissions, and active billing for this Firebase project.',
+            providerStatus,
+            providerCode
+          }
+        );
+      }
+
+      if (response.status >= 500) {
+        throw new HttpsError(
+          'unavailable',
+          'AI provider is temporarily unavailable.',
+          {
+            reason: 'provider_unavailable',
+            nextStep: 'Retry in a minute.',
+            providerStatus,
+            providerCode
+          }
+        );
+      }
+
+      throw new HttpsError(
+        'internal',
+        'AI request failed unexpectedly.',
+        {
+          reason: 'unexpected_provider_error',
+          providerStatus,
+          providerCode,
+          providerMessage
+        }
+      );
     }
 
     // Extract the raw text response
@@ -94,10 +153,17 @@ exports.estimateCalories = onCall(
     // Return the raw text - let client handle parsing
     return { success: true, rawText };
   } catch (error) {
+    if (error instanceof HttpsError) {
+      throw error;
+    }
     console.error('Error calling Gemini API:', error);
     throw new HttpsError(
-      'internal',
-      error.message || 'Failed to process request'
+      'unavailable',
+      'Could not reach AI provider.',
+      {
+        reason: 'network_or_transport_error',
+        nextStep: 'Check network connectivity and retry.'
+      }
     );
   }
 });

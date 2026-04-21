@@ -151,8 +151,40 @@ async function estimateWithGemini(text, userWeightLbs, userHeightInches, userAge
         return validated;
     } catch (error) {
         console.error('Cloud function error:', error);
-        throw new Error(error.message || 'Failed to estimate calories');
+        throw new Error(formatAiErrorForUser(error));
     }
+}
+
+function formatAiErrorForUser(error) {
+    const code = String(error?.code || '');
+    const details = error?.details || {};
+    const cleanMessage = String(error?.message || '').replace(/^Error:\s*/i, '');
+
+    if (code.includes('resource-exhausted')) {
+        return "AI is currently rate-limited or out of quota for this project. Wait 1-2 minutes and try again. If it keeps happening, check Gemini/Vertex quotas and billing in Google Cloud.";
+    }
+    if (code.includes('failed-precondition')) {
+        return "AI request was rejected due to project configuration, permissions, or billing. Check Gemini API access and billing in Google Cloud.";
+    }
+    if (code.includes('unauthenticated')) {
+        return "Your session expired. Please sign out and sign back in, then retry.";
+    }
+    if (code.includes('unavailable')) {
+        return "AI provider is temporarily unavailable or unreachable. Please retry in a minute.";
+    }
+    if (code.includes('invalid-argument')) {
+        return "The request was invalid. Please shorten or simplify the entry and try again.";
+    }
+
+    // Surface backend details when present (without dumping raw stack-like text)
+    if (details?.reason === 'network_or_transport_error') {
+        return "Could not reach the AI provider. Check your internet connection and retry.";
+    }
+    if (details?.reason === 'unexpected_provider_error') {
+        return "AI request failed unexpectedly. Please retry. If it continues, check Cloud Function logs for provider error details.";
+    }
+
+    return cleanMessage || "Failed to estimate calories. Please try again.";
 }
 
 /**
@@ -878,7 +910,7 @@ async function addEntryFromAi(originalValue, timestamp, statusEl, inputEl) {
         loadData(auth.currentUser.uid);
     } catch (err) {
         console.error("Error adding entry:", err);
-        statusEl.innerText = "Error: " + (err.message || "Failed to process entry. Please try again.");
+        statusEl.innerText = err.message || "Failed to process entry. Please try again.";
     }
 }
 
